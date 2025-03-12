@@ -1,4 +1,4 @@
-package mail;
+package fr.insa.crypto.mail;
 
 /**
  * Classe pour l'envoi des emails chiffrés

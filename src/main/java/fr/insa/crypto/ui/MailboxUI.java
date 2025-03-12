@@ -1,4 +1,4 @@
-package ui;
+package fr.insa.crypto.ui;
 
 /**
  * Interface pour afficher la boîte de réception

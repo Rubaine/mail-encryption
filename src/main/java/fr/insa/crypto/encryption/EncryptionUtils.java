@@ -1,4 +1,4 @@
-package encryption;
+package fr.insa.crypto.encryption;
 
 /**
  * Utilitaires pour les opérations de chiffrement

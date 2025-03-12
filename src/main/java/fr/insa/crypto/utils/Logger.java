@@ -1,4 +1,4 @@
-package utils;
+package fr.insa.crypto.utils;
 
 /**
  * Système de journalisation pour l'application

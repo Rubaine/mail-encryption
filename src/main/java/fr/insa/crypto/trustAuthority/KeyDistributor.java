@@ -1,4 +1,4 @@
-package trustAuthority;
+package fr.insa.crypto.trustAuthority;
 
 /**
  * Distributeur de clés privées aux utilisateurs

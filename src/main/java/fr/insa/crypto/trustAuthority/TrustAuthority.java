@@ -1,4 +1,4 @@
-package trustAuthority;
+package fr.insa.crypto.trustAuthority;
 
 /**
  * Autorité de confiance pour le système de chiffrement basé sur l'identité

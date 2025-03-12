@@ -1,4 +1,4 @@
-package encryption;
+package fr.insa.crypto.encryption;
 
 /**
  * Classe pour la génération des clés dans le système IBE

@@ -1,4 +1,4 @@
-package utils;
+package fr.insa.crypto.utils;
 
 /**
  * Configuration de l'application

@@ -1,4 +1,4 @@
-package com.example.demo;
+package fr.insa.crypto;
 
 import javafx.fxml.FXML;
 import javafx.scene.control.Label;

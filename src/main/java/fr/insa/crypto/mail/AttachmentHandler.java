@@ -1,4 +1,4 @@
-package mail;
+package fr.insa.crypto.mail;
 
 /**
  * Classe pour la gestion des pièces jointes

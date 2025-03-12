@@ -3,6 +3,6 @@ module com.example.demo {
     requires javafx.fxml;
 
 
-    opens com.example.demo to javafx.fxml;
-    exports com.example.demo;
+    opens fr.insa.crypto to javafx.fxml;
+    exports fr.insa.crypto;
 }

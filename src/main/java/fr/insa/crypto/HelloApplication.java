@@ -1,4 +1,4 @@
-package com.example.demo;
+package fr.insa.crypto;
 
 import javafx.application.Application;
 import javafx.fxml.FXMLLoader;

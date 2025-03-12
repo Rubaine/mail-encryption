@@ -1,4 +1,4 @@
-package ui;
+package fr.insa.crypto.ui;
 
 /**
  * Interface principale de l'application
