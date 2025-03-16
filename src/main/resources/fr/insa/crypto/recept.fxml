@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import java.lang.*?>
+<?import java.util.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.paint.*?>
+<?import javafx.scene.text.*?>
+
+<VBox prefHeight="400.0" prefWidth="640.0" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+    <children>
+        <AnchorPane maxHeight="-1.0" maxWidth="-1.0" minHeight="-Infinity" minWidth="-Infinity" prefHeight="700.0" prefWidth="1024.0" VBox.vgrow="ALWAYS">
+            <children>
+                <Button fx:id="refreshButton" layoutX="791.0" layoutY="39.0" mnemonicParsing="false" prefHeight="47.0" prefWidth="164.0" text="Actualiser" />
+                <Button fx:id="emailButton0" layoutX="63.0" layoutY="196.0" mnemonicParsing="false" prefHeight="47.0" prefWidth="888.0" text="De : xxx Message : xxx" />
+                <Button fx:id="emailButton1" layoutX="63.0" layoutY="243.0" mnemonicParsing="false" prefHeight="47.0" prefWidth="888.0" text="De : xxx Message : xxx" />
+                <Button fx:id="emailButton2" layoutX="63.0" layoutY="290.0" mnemonicParsing="false" prefHeight="47.0" prefWidth="888.0" text="De : xxx Message : xxx" />
+                <Button fx:id="emailButton3" layoutX="63.0" layoutY="337.0" mnemonicParsing="false" prefHeight="47.0" prefWidth="888.0" text="De : xxx Message : xxx" />
+                <Button fx:id="emailButton4" layoutX="63.0" layoutY="384.0" mnemonicParsing="false" prefHeight="47.0" prefWidth="888.0" text="De : xxx Message : xxx" />
+                <Button fx:id="emailButton5" layoutX="63.0" layoutY="431.0" mnemonicParsing="false" prefHeight="47.0" prefWidth="888.0" text="De : xxx Message : xxx" />
+                <Button fx:id="emailButton6" layoutX="63.0" layoutY="149.0" mnemonicParsing="false" prefHeight="47.0" prefWidth="888.0" text="De : xxx Message : xxx" />
+                <Button fx:id="newMessageButton" layoutX="63.0" layoutY="592.0" mnemonicParsing="false" prefHeight="47.0" prefWidth="320.0" text="Envoyer un nouveau message" />
+                <Button fx:id="logoutButton" layoutX="63.0" layoutY="39.0" mnemonicParsing="false" prefHeight="47.0" prefWidth="164.0" text="Se déconnecter" />
+                <Text fx:id="connectedText" layoutX="63.0" layoutY="124.0" strokeType="OUTSIDE" strokeWidth="0.0" text="Connecté à : xxx@yyy.zzz" wrappingWidth="249.205078125" />
+            </children>
+        </AnchorPane>
+    </children>
+</VBox>

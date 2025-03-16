@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox prefHeight="400.0" prefWidth="640.0" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+    <AnchorPane maxHeight="1.0" maxWidth="1.0" prefHeight="1.0" prefWidth="1.0" VBox.vgrow="ALWAYS">
+        <Accordion layoutX="330.0" layoutY="185.0"/>
+        <TextField fx:id="emailField" layoutX="119.0" layoutY="102.0" prefHeight="39.0" prefWidth="402.0" text="adresse e-mail"/>
+        <TextField fx:id="passwordField" layoutX="119.0" layoutY="172.0" prefHeight="39.0" prefWidth="402.0" text="mot de passe"/>
+        <Button fx:id="loginButton" layoutX="367.0" layoutY="283.0" mnemonicParsing="false" prefHeight="39.0" prefWidth="154.0" text="Se connecter"/>
+    </AnchorPane>
+</VBox>
