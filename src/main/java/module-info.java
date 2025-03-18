@@ -1,4 +1,4 @@
-module com.example.demo {
+module fr.insa.crypto {
     requires javafx.controls;
     requires javafx.fxml;
     requires jdk.httpserver;
@@ -6,7 +6,7 @@ module com.example.demo {
     requires jpbc.plaf;
     requires mail;
 
-
     opens fr.insa.crypto to javafx.fxml;
+
     exports fr.insa.crypto;
 }
