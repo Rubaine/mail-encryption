@@ -1,5 +1,7 @@
 package fr.insa.crypto.encryption;
 
+import it.unisa.dia.gas.jpbc.Element;
+
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
@@ -47,5 +49,31 @@ public class EncryptionUtils {
      */
     public static boolean isValidEmail(String email) {
         return email != null && email.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
+    }
+    
+    /**
+     * Encode un élément JPBC en Base64
+     * @param element L'élément à encoder
+     * @return L'élément encodé en Base64
+     */
+    public static String encodeElement(Element element) {
+        if (element == null) {
+            return null;
+        }
+        return java.util.Base64.getEncoder().encodeToString(element.toBytes());
+    }
+    
+    /**
+     * Opération XOR entre deux tableaux d'octets
+     * @param a Premier tableau d'octets
+     * @param b Second tableau d'octets
+     * @return Le résultat de l'opération XOR
+     */
+    public static byte[] xor(byte[] a, byte[] b) {
+        byte[] result = new byte[Math.min(a.length, b.length)];
+        for (int i = 0; i < result.length; i++) {
+            result[i] = (byte)((int)a[i] ^ (int)b[i]);
+        }
+        return result;
     }
 }

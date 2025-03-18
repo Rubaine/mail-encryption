@@ -10,6 +10,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.stream.Collectors;
 
 /**
@@ -71,8 +72,15 @@ public class TrustAuthorityServer {
                     .lines().collect(Collectors.joining("\n"));
                 
                 // Distribution de la clé privée
-                String privateKey = trustAuthority.getKeyDistributor().distributePrivateKey(email);
-                sendResponse(exchange, 200, privateKey);
+                KeyPair privateKey = trustAuthority.getKeyDistributor().distributePrivateKey(email);
+                
+                // Sérialisation de la clé privée pour la transmission
+                String response = String.format("{\"identity\":\"%s\",\"privateKey\":\"%s\"}",
+                    privateKey.getPk(),
+                    Base64.getEncoder().encodeToString(privateKey.getSk().toBytes())
+                );
+                
+                sendResponse(exchange, 200, response);
                 
             } catch (IllegalArgumentException e) {
                 sendResponse(exchange, 400, "Invalid email format: " + e.getMessage());
@@ -94,11 +102,11 @@ public class TrustAuthorityServer {
             }
             
             try {
-                // Format simplifié des paramètres publics en JSON
+                // Sérialisation complète des paramètres publics en JSON
                 String publicParams = String.format(
-                    "{\"publicKey\": \"%s\", \"params\": \"%s\"}",
-                    java.util.Base64.getEncoder().encodeToString(trustAuthority.getPublicKey().toBytes()),
-                    trustAuthority.getParameters().toString()
+                    "{\"publicKey\":\"%s\",\"generator\":\"%s\",\"pairingParams\":\"params/curves/a.properties\"}",
+                    Base64.getEncoder().encodeToString(trustAuthority.getParameters().getPublicKey().toBytes()),
+                    Base64.getEncoder().encodeToString(trustAuthority.getParameters().getGenerator().toBytes())
                 );
                 sendResponse(exchange, 200, publicParams);
                 

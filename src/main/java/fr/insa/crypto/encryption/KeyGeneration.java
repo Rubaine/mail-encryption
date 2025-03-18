@@ -8,6 +8,7 @@ import java.util.Base64;
 
 /**
  * Classe pour la génération des clés dans le système IBE
+ * Adaptée pour correspondre au code fonctionnel
  */
 public class KeyGeneration {
     private Pairing pairing;
@@ -23,8 +24,8 @@ public class KeyGeneration {
      * @return Une clé de session encodée en Base64
      */
     public String generateSessionKey() {
-        // Génération d'une clé aléatoire dans Zr
-        Element sessionKey = pairing.getZr().newRandomElement().getImmutable();
+        // Génération d'une clé aléatoire dans GT
+        Element sessionKey = pairing.getGT().newRandomElement().getImmutable();
         return Base64.getEncoder().encodeToString(sessionKey.toBytes());
     }
     
@@ -37,7 +38,7 @@ public class KeyGeneration {
     }
     
     /**
-     * Calcule l'élément Q_ID à partir d'une adresse email (identité)
+     * Calcule l'élément Q_ID à partir d'une adresse email (identité) - implémentation de H1
      */
     public Element calculateQid(String email) {
         return pairing.getG1().newElementFromHash(email.getBytes(), 0, email.length()).getImmutable();
