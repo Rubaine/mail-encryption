@@ -1,8 +1,9 @@
 package fr.insa.crypto.mail;
 
-import java.util.List;
 import java.util.Scanner;
 
+import javax.mail.Message;
+import javax.mail.MessagingException;
 import javax.mail.Session;
 
 import fr.insa.crypto.utils.Logger;
@@ -14,6 +15,10 @@ public class Test {
         Scanner scanner = new Scanner(System.in);
         Authentication auth = null;
         Session session = null;
+        
+        // Variables pour stocker les identifiants de façon simple
+        String userEmail = null;
+        String userPassword = null;
 
         while (true) {
             System.out.println("\n===== EMAIL APPLICATION =====");
@@ -37,6 +42,10 @@ public class Test {
                     String email = scanner.nextLine();
                     System.out.print("Enter your app key/password: ");
                     String appKey = scanner.nextLine();
+                    
+                    // Stocker les identifiants pour les réutiliser plus tard
+                    userEmail = email;
+                    userPassword = appKey;
 
                     System.out.print("Use SSL instead of TLS? (y/n): ");
                     boolean useSSL = scanner.nextLine().toLowerCase().startsWith("y");
@@ -49,6 +58,8 @@ public class Test {
                     } else {
                         Logger.error("Email authentication failed!");
                         auth = null;
+                        userEmail = null;
+                        userPassword = null;
                     }
                     break;
 
@@ -74,6 +85,9 @@ public class Test {
                         auth.logout();
                         auth = null;
                         session = null;
+                        // Effacer les identifiants lors de la déconnexion
+                        userEmail = null;
+                        userPassword = null;
                         Logger.info("Logged out successfully.");
                     } else {
                         Logger.info("Not currently logged in.");
@@ -130,79 +144,97 @@ public class Test {
                     break;
 
                 case "6": // View Received Emails
-                    if (auth == null || session == null) {
+                    if (auth == null || session == null || userEmail == null || userPassword == null) {
                         Logger.error("You must login first!");
                     } else {
                         try {
                             System.out.println("\n===== VIEWING RECEIVED EMAILS =====");
-                            System.out.print("Enter mail server (e.g., imap.gmail.com): ");
+                            System.out.print("Enter mail server (e.g., pop.gmail.com): ");
                             String host = scanner.nextLine();
                             
                             // Si aucun serveur n'est indiqué, utiliser gmail par défaut
                             if (host == null || host.trim().isEmpty()) {
-                                host = "imap.gmail.com";
+                                host = "pop.gmail.com";
                                 System.out.println("Using default server: " + host);
                             }
                             
-                            // Créer un MailReceiver avec les identifiants déjà utilisés
-                            MailReceiver mailReceiver = new MailReceiver(host, auth.getEmail(), auth.getProperties().getProperty("mail.smtp.user.password") != null ? 
-                                                                     auth.getProperties().getProperty("mail.smtp.user.password") : auth.getProperties().getProperty("password.key"));
+                            // Créer un MailReceiver
+                            MailReceiver mailReceiver = new MailReceiver(host, "995");
                             
-                            if (!mailReceiver.connect()) {
-                                System.out.println("Échec de connexion au serveur de réception. Veuillez réessayer.");
-                                break;
-                            }
-                            
-                            System.out.println("1. Voir tous les messages");
-                            System.out.println("2. Voir uniquement les messages non lus");
-                            System.out.print("Choisissez une option: ");
-                            String viewOption = scanner.nextLine();
-                            
-                            List<MailReceiver.EmailMessage> emails = null;
-                            switch (viewOption) {
-                                case "1":
-                                    System.out.println("\nRécupération de tous les messages...");
-                                    emails = mailReceiver.getInboxMessages();
-                                    break;
-                                case "2":
-                                    System.out.println("\nRécupération des messages non lus...");
-                                    emails = mailReceiver.getUnreadMessages();
-                                    break;
-                                default:
-                                    System.out.println("Option non reconnue. Affichage de tous les messages.");
-                                    emails = mailReceiver.getInboxMessages();
-                            }
-                            
-                            if (emails.isEmpty()) {
-                                System.out.println("Aucun message trouvé.");
-                            } else {
-                                System.out.println("\n===== MAILS REÇUS =====");
-                                System.out.println("Nombre de messages: " + emails.size());
+                            try {
+                                // Utiliser directement les identifiants stockés
+                                mailReceiver.connect(userEmail, userPassword);
+                                mailReceiver.openFolder("INBOX", true);
                                 
-                                for (int i = 0; i < emails.size(); i++) {
-                                    MailReceiver.EmailMessage emailMessage = emails.get(i);
-                                    System.out.println("\n----- Email #" + (i + 1) + " -----");
-                                    System.out.println("De: " + emailMessage.getFrom());
-                                    System.out.println("Sujet: " + emailMessage.getSubject());
-                                    System.out.println("Date: " + emailMessage.getReceivedDate());
-                                    if (emailMessage.hasAttachments()) {
-                                        System.out.println("[Contient des pièces jointes]");
-                                    }
-                                    if (emailMessage.isEncrypted()) {
-                                        System.out.println("[Message chiffré]");
-                                    }
+                                Message[] messages = mailReceiver.getMessages();
+                                
+                                if (messages.length == 0) {
+                                    System.out.println("Aucun message trouvé.");
+                                } else {
+                                    System.out.println("\n===== MAILS REÇUS =====");
+                                    System.out.println("Nombre de messages: " + messages.length);
                                     
-                                    System.out.print("Afficher le contenu complet? (y/n): ");
-                                    if (scanner.nextLine().toLowerCase().startsWith("y")) {
-                                        System.out.println("\n--- CONTENU ---");
-                                        System.out.println(emailMessage.getContent());
-                                        System.out.println("---------------");
+                                    for (int i = 0; i < messages.length; i++) {
+                                        Message message = messages[i];
+                                        System.out.println("\n----- Email #" + (i + 1) + " -----");
+                                        System.out.println("De: " + (message.getFrom().length > 0 ? message.getFrom()[0] : "Inconnu"));
+                                        System.out.println("Sujet: " + message.getSubject());
+                                        System.out.println("Date: " + message.getReceivedDate());
+                                        
+                                        System.out.print("Afficher le contenu complet? (y/n): ");
+                                        if (scanner.nextLine().toLowerCase().startsWith("y")) {
+                                            System.out.println("\n--- CONTENU ---");
+                                            System.out.println(message.getContent().toString());
+                                            System.out.println("---------------");
+                                        }
+                                    }
+                                }
+                                
+                                mailReceiver.close();
+                                
+                            } catch (MessagingException e) {
+                                Logger.error("Erreur lors de la connexion au serveur: " + e.getMessage());
+                                System.out.println("Voulez-vous réessayer avec d'autres identifiants? (y/n): ");
+                                if (scanner.nextLine().toLowerCase().startsWith("y")) {
+                                    System.out.print("Enter your email: ");
+                                    userEmail = scanner.nextLine();
+                                    System.out.print("Enter your password: ");
+                                    userPassword = scanner.nextLine();
+                                    
+                                    try {
+                                        mailReceiver.connect(userEmail, userPassword);
+                                        mailReceiver.openFolder("INBOX", true);
+                                        
+                                        Message[] messages = mailReceiver.getMessages();
+                                        
+                                        // Répéter le code d'affichage des messages...
+                                        if (messages.length == 0) {
+                                            System.out.println("Aucun message trouvé.");
+                                        } else {
+                                            System.out.println("\n===== MAILS REÇUS =====");
+                                            System.out.println("Nombre de messages: " + messages.length);
+                                            
+                                            for (int i = 0; i < messages.length; i++) {
+                                                Message message = messages[i];
+                                                System.out.println("\n----- Email #" + (i + 1) + " -----");
+                                                System.out.println("De: " + (message.getFrom().length > 0 ? message.getFrom()[0] : "Inconnu"));
+                                                System.out.println("Sujet: " + message.getSubject());
+                                                System.out.println("Date: " + message.getReceivedDate());
+                                                
+                                                System.out.print("Afficher le contenu complet? (y/n): ");
+                                                if (scanner.nextLine().toLowerCase().startsWith("y")) {
+                                                    System.out.println("\n--- CONTENU ---");
+                                                    System.out.println(message.getContent().toString());
+                                                    System.out.println("---------------");
+                                                }
+                                            }
+                                        }
+                                        
+                                    } catch (MessagingException ex) {
+                                        Logger.error("Échec de la connexion avec les nouveaux identifiants: " + ex.getMessage());
                                     }
                                 }
                             }
-                            
-                            mailReceiver.disconnect();
-                            
                         } catch (Exception e) {
                             Logger.error("Erreur lors de la récupération des emails: " + e.getMessage());
                             e.printStackTrace();
