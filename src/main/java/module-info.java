@@ -1,4 +1,4 @@
-module com.example.demo {
+module fr.insa.crypto {
     requires javafx.controls;
     requires javafx.fxml;
     requires jdk.httpserver;

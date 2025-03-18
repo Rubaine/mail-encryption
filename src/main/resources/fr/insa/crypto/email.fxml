@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import java.lang.*?>
+<?import java.util.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.paint.*?>
+<?import javafx.scene.text.*?>
+
+<VBox prefHeight="400.0" prefWidth="640.0" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+    <children>
+        <AnchorPane maxHeight="-1.0" maxWidth="-1.0" minHeight="-Infinity" minWidth="-Infinity" prefHeight="600.0" prefWidth="1024.0" VBox.vgrow="ALWAYS">
+            <children>
+                <Button fx:id="quitButton" layoutX="35.0" layoutY="34.0" mnemonicParsing="false" prefHeight="49.0" prefWidth="119.0" text="Quitter" />
+                <TextArea fx:id="messageArea" layoutX="35.0" layoutY="241.0" prefHeight="222.0" prefWidth="954.0" text="Message :" editable="false" />
+                <TextArea fx:id="fromArea" layoutX="35.0" layoutY="114.0" prefHeight="49.0" prefWidth="954.0" text="De : " editable="false" />
+                <TextArea fx:id="subjectArea" layoutX="35.0" layoutY="172.0" prefHeight="49.0" prefWidth="954.0" text="Sujet : " editable="false" />
+                <Button fx:id="attachmentButton" layoutX="35.0" layoutY="480.0" mnemonicParsing="false" prefHeight="49.0" prefWidth="200.0" text="Télécharger" />
+                <Text fx:id="attachmentStatus" layoutX="35.0" layoutY="540.0" strokeType="OUTSIDE" strokeWidth="0.0" text="Pas de pièce jointe dans ce message" wrappingWidth="400.0" />
+            </children>
+        </AnchorPane>
+        <TextArea prefHeight="311.0" prefWidth="954.0" />
+    </children>
+</VBox>
