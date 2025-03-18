@@ -7,7 +7,8 @@ module fr.insa.crypto {
     requires mail;
     requires org.json;
 
-
+    requires activation;
+    requires owasp.encoder;
     opens fr.insa.crypto to javafx.fxml;
     exports fr.insa.crypto;
 }

@@ -52,4 +52,5 @@ out/
 .settings/
 bin/
 *.pdf
-*.vscode/
+
+.vscode/
