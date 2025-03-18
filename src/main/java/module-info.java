@@ -6,6 +6,7 @@ module fr.insa.crypto {
     requires jpbc.plaf;
     requires mail;
     requires activation;
+    requires owasp.encoder;
 
     opens fr.insa.crypto to javafx.fxml;
 

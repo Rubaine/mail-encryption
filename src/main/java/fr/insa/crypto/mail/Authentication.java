@@ -119,4 +119,13 @@ public class Authentication {
     public Properties getProperties() {
         return properties;
     }
+
+    /**
+     * Retrieves the application key/password used for authentication.
+     *
+     * @return the application key/password as a String
+     */
+    public String getAppKey() {
+        return appKey;
+    }
 }
