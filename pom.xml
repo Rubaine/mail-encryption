@@ -4,17 +4,39 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.example</groupId>
-    <artifactId>demo</artifactId>
+    <groupId>fr.insa.crypto</groupId>
+    <artifactId>mail-encryption</artifactId>
     <version>1.0-SNAPSHOT</version>
-    <name>demo</name>
 
     <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>11</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <junit.version>5.7.1</junit.version>
     </properties>
 
+    <repositories>
+
+        <repository>
+            <id>maven</id>
+            <url>https://repo1.maven.org/maven2/</url>
+        </repository>
+
+        <repository>
+            <id>scijava</id>
+            <url>	https://maven.scijava.org/content/repositories/public</url>
+        </repository>
+
+    </repositories>
+
     <dependencies>
+
+        <!-- https://mvnrepository.com/artifact/org.bouncycastle/bcprov-jdk16 -->
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk16</artifactId>
+            <version>1.46</version>
+        </dependency>
+
 
         <dependency>
             <groupId>org.openjfx</groupId>
@@ -27,18 +49,50 @@
             <version>17-ea+11</version>
         </dependency>
 
+        <!-- https://mvnrepository.com/artifact/com.github.emilianobonassi.jpbc/jpbc-api -->
         <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-api</artifactId>
-            <version>${junit.version}</version>
-            <scope>test</scope>
+            <groupId>com.github.emilianobonassi.jpbc</groupId>
+            <artifactId>jpbc-api</artifactId>
+            <version>2.0.0</version>
         </dependency>
+
+        <!-- https://mvnrepository.com/artifact/com.github.emilianobonassi.jpbc/jpbc-plaf -->
         <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-engine</artifactId>
-            <version>${junit.version}</version>
-            <scope>test</scope>
+            <groupId>com.github.emilianobonassi.jpbc</groupId>
+            <artifactId>jpbc-plaf</artifactId>
+            <version>2.0.0</version>
         </dependency>
+
+
+        <!-- https://mvnrepository.com/artifact/com.github.emilianobonassi.jpbc/jpbc-pbc -->
+        <dependency>
+            <groupId>com.github.emilianobonassi.jpbc</groupId>
+            <artifactId>jpbc-pbc</artifactId>
+            <version>2.0.0</version>
+        </dependency>
+
+        <!-- https://mvnrepository.com/artifact/com.github.emilianobonassi.jpbc/jpbc-mm -->
+        <dependency>
+            <groupId>com.github.emilianobonassi.jpbc</groupId>
+            <artifactId>jpbc-mm</artifactId>
+            <version>2.0.0</version>
+        </dependency>
+
+        <!-- https://mvnrepository.com/artifact/javax.mail/mail -->
+        <dependency>
+            <groupId>javax.mail</groupId>
+            <artifactId>mail</artifactId>
+            <version>1.5.0-b01</version>
+        </dependency>
+
+        <!-- https://mvnrepository.com/artifact/org.json/json -->
+        <dependency>
+            <groupId>org.json</groupId>
+            <artifactId>json</artifactId>
+            <version>20250107</version>
+        </dependency>
+
+
 
     </dependencies>
 
