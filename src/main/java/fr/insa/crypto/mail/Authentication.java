@@ -59,6 +59,7 @@ public class Authentication {
             properties.put("mail.smtp.auth", "true");
             properties.put("mail.smtp.starttls.enable", "true");
             properties.put("mail.smtp.ssl.trust", "smtp.gmail.com");
+            properties.put("mail.smtp.ssl.protocols", "TLSv1.2");
         }
 
         // Ajout de l'adresse email comme propriété mail.smtp.user
