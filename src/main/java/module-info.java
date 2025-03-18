@@ -5,6 +5,7 @@ module fr.insa.crypto {
     requires jpbc.api;
     requires jpbc.plaf;
     requires mail;
+    requires activation;
 
     opens fr.insa.crypto to javafx.fxml;
 

@@ -20,6 +20,7 @@ public class Test {
             System.out.println("2. Send Email");
             System.out.println("3. Logout");
             System.out.println("4. Exit");
+            System.out.println("5. Send Email with Attachment");
             System.out.print("Enter your choice: ");
 
             String choice = scanner.nextLine();
@@ -81,6 +82,49 @@ public class Test {
                     Logger.info("Exiting application...");
                     scanner.close();
                     System.exit(0);
+                    break;
+
+                case "5": // Send Email with Attachment
+                    if (auth == null || session == null) {
+                        Logger.error("You must login first!");
+                    } else {
+                        try {
+                            System.out.print("Enter recipient email: ");
+                            String toEmail = scanner.nextLine();
+
+                            System.out.print("Enter subject: ");
+                            String subject = scanner.nextLine();
+
+                            System.out.print("Enter email body: ");
+                            String body = scanner.nextLine();
+                            
+                            // Create attachment handler
+                            AttachmentHandler attachmentHandler = new AttachmentHandler();
+                            
+                            boolean addMoreAttachments = true;
+                            while (addMoreAttachments) {
+                                System.out.print("Enter file path to attach: ");
+                                String filePath = scanner.nextLine();
+                                
+                                try {
+                                    attachmentHandler.addAttachment(filePath);
+                                    System.out.println("Attachment added successfully: " + filePath);
+                                } catch (Exception e) {
+                                    Logger.error("Failed to add attachment: " + e.getMessage());
+                                }
+                                
+                                System.out.print("Add another attachment? (y/n): ");
+                                addMoreAttachments = scanner.nextLine().toLowerCase().startsWith("y");
+                            }
+                            
+                            // Send email with attachments
+                            MailSender.sendEmailWithAttachments(session, toEmail, subject, body, attachmentHandler);
+                            
+                        } catch (Exception e) {
+                            Logger.error("Error sending email with attachment: " + e.getMessage());
+                            e.printStackTrace();
+                        }
+                    }
                     break;
 
                 default:
