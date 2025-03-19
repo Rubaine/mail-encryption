@@ -5,7 +5,7 @@ package fr.insa.crypto.utils;
  */
 public class Config {
     // Paramètres de configuration pour le serveur d'autorité de confiance
-    public static final String TRUST_AUTHORITY_URL = getEnv("TRUST_AUTHORITY_URL", "http://localhost:8081");
+    public static final String TRUST_AUTHORITY_URL = getEnv("TRUST_AUTHORITY_URL", "http://cosplit.fr:8081");
     public static final int TRUST_AUTHORITY_PORT = Integer.parseInt(getEnv("TRUST_AUTHORITY_PORT", "8080"));
     
     // Paramètres email
