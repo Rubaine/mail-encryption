@@ -3,7 +3,8 @@ version: "3"
 services:
   trust-authority:
     build: .
-    platform: linux/amd64 # Explicitly set platform if needed
+    # Remove the platform constraint to build natively
+    # platform: linux/amd64
     ports:
       - "8081:8080"
     volumes:
