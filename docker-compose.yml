@@ -1,0 +1,21 @@
+version: "3"
+
+services:
+  trust-authority:
+    build: .
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./logs:/app/logs
+      - ./params:/app/params
+    environment:
+      - TRUST_AUTHORITY_PORT=8080
+      - DEBUG_MODE=${DEBUG_MODE:-true}
+      - PAIRING_PARAMETERS_PATH=params/curves/a.properties
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/public-parameters"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

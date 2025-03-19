@@ -13,6 +13,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.stream.Collectors;
 
+// Add the missing import for Logger
+import fr.insa.crypto.utils.Logger;
+
 /**
  * Serveur HTTP pour l'autorité de confiance
  */
@@ -134,16 +137,29 @@ public class TrustAuthorityServer {
      */
     public static void main(String[] args) {
         try {
+            // Récupérer le port depuis les variables d'environnement ou utiliser 8080 par défaut
+            int port = fr.insa.crypto.utils.Config.TRUST_AUTHORITY_PORT;
+            
+            Logger.info("Démarrage du serveur d'autorité de confiance sur le port " + port);
             TrustAuthority trustAuthority = new TrustAuthority();
-            TrustAuthorityServer server = new TrustAuthorityServer(trustAuthority, 8080);
+            TrustAuthorityServer server = new TrustAuthorityServer(trustAuthority, port);
             server.start();
             
-            System.out.println("Trust Authority Server is running. Press Enter to stop.");
-            System.in.read();
-            server.stop();
+            // En mode conteneurisé, nous voulons que le serveur continue à s'exécuter
+            Logger.info("Serveur démarré avec succès. Appuyez sur Ctrl+C pour arrêter.");
+            
+            // Ajouter un hook d'arrêt pour une fermeture propre
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                Logger.info("Arrêt du serveur...");
+                server.stop();
+                Logger.info("Serveur arrêté.");
+            }));
+            
+            // Garder le thread principal en vie
+            Thread.currentThread().join();
             
         } catch (Exception e) {
-            System.err.println("Error starting server: " + e.getMessage());
+            Logger.error("Erreur lors du démarrage du serveur: " + e.getMessage());
             e.printStackTrace();
         }
     }
