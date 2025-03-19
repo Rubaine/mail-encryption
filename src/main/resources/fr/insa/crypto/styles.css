@@ -279,3 +279,30 @@
   -fx-opacity: 0;
   -fx-transition: opacity 0.3s ease-out;
 }
+
+/* Styles pour la ListView d'emails */
+.email-list {
+  -fx-background-color: white;
+  -fx-padding: 0;
+  -fx-background-insets: 0;
+}
+
+.email-list .list-cell {
+  -fx-background-color: white;
+  -fx-border-color: transparent transparent -fx-mid-gray-color transparent;
+  -fx-padding: 10px;
+  -fx-background-radius: 0;
+  -fx-cursor: hand;
+}
+
+.email-list .list-cell:hover {
+  -fx-background-color: -fx-light-gray-color;
+}
+
+.email-list .list-cell:selected {
+  -fx-background-color: derive(-fx-primary-color, 80%);
+}
+
+.email-list .list-cell.email-item-unread {
+  -fx-font-weight: bold;
+}

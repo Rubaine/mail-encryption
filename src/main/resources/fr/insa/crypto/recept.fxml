@@ -5,7 +5,8 @@
 <?import javafx.scene.text.*?>
 <?import javafx.geometry.*?>
 
-<BorderPane prefHeight="700.0" prefWidth="1000.0" stylesheets="@styles.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+<BorderPane prefHeight="700.0" prefWidth="1000.0" stylesheets="@styles.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" 
+          fx:controller="fr.insa.crypto.ui.controllers.ReceptController">
     <!-- En-tête -->
     <top>
         <HBox alignment="CENTER_LEFT" styleClass="header" spacing="10" BorderPane.alignment="CENTER">
@@ -53,18 +54,10 @@
                             <content>
                                 <StackPane>
                                     <children>
-                                        <!-- Vue par défaut avec des emails -->
-                                        <VBox spacing="1.0" fx:id="emailListView">
-                                            <Button fx:id="emailButton0" styleClass="email-item" text="De : xxx Message : xxx" maxWidth="Infinity" />
-                                            <Button fx:id="emailButton1" styleClass="email-item" text="De : xxx Message : xxx" maxWidth="Infinity" />
-                                            <Button fx:id="emailButton2" styleClass="email-item" text="De : xxx Message : xxx" maxWidth="Infinity" />
-                                            <Button fx:id="emailButton3" styleClass="email-item" text="De : xxx Message : xxx" maxWidth="Infinity" />
-                                            <Button fx:id="emailButton4" styleClass="email-item" text="De : xxx Message : xxx" maxWidth="Infinity" />
-                                            <Button fx:id="emailButton5" styleClass="email-item" text="De : xxx Message : xxx" maxWidth="Infinity" />
-                                            <Button fx:id="emailButton6" styleClass="email-item" text="De : xxx Message : xxx" maxWidth="Infinity" />
-                                        </VBox>
+                                        <!-- Vue par défaut avec des emails - ListView pour afficher tous les messages -->
+                                        <ListView fx:id="emailListView" styleClass="email-list" VBox.vgrow="ALWAYS" />
                                         
-                                        <!-- Vue pour boîte de réception vide -->
+                                        <!-- Vue pour boîte de réception vide - S'assurer que le bouton est toujours accessible -->
                                         <VBox fx:id="emptyInboxView" alignment="CENTER" styleClass="empty-inbox" visible="false">
                                             <children>
                                                 <Text styleClass="icon" text="📭" />

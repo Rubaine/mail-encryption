@@ -1,7 +1,9 @@
-package fr.insa.crypto;
+package fr.insa.crypto.ui.controllers;
 
+import fr.insa.crypto.MainUI;
 import fr.insa.crypto.trustAuthority.AccountStatus;
 import fr.insa.crypto.trustAuthority.TrustAuthorityClient;
+import fr.insa.crypto.ui.ViewManager;
 import fr.insa.crypto.utils.Logger;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
@@ -13,392 +15,417 @@ import javafx.scene.image.ImageView;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.text.Text;
-import org.json.JSONObject;
 
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.util.Base64;
 
 /**
- * Contrôleur pour l'écran d'authentification et d'enregistrement 2FA
+ * Controller for the authentication and 2FA registration screen
  */
 public class AuthController {
-    // Référence à l'application principale
+    // Reference to main application and view manager
     private MainUI mainApp;
-    
-    // Client pour communiquer avec l'autorité de confiance
+    private ViewManager viewManager;
+
+    // Trust authority client
     private TrustAuthorityClient trustClient;
-    
-    // État courant
+
+    // Current state
     private String currentEmail;
     private String totpSecret;
-    
-    // Composants UI
-    @FXML private VBox mainPanel;
-    @FXML private VBox registerPanel;
-    @FXML private VBox otpPanel;
-    @FXML private VBox totpSetupPanel;
-    @FXML private StackPane loadingOverlay;
-    
-    @FXML private Label emailDisplay;
-    @FXML private TextField totpCodeField;
-    @FXML private Button verifyTotpButton;
-    @FXML private Button registerButton;
-    @FXML private Text mainInfoText;
-    
-    @FXML private TextField registerEmailField;
-    @FXML private Button sendOtpButton;
-    @FXML private Button backToLoginButton;
-    
-    @FXML private Text otpInfoText;
-    @FXML private TextField otpField;
-    @FXML private Button verifyOtpButton;
-    @FXML private Button resendOtpButton;
-    
-    @FXML private ImageView qrCodeImageView;
-    @FXML private Text manualCodeText;
-    @FXML private TextField setupTotpField;
-    @FXML private Button confirmSetupButton;
-    
-    @FXML private Label loadingText;
-    
+
+    // UI components
+    @FXML
+    private VBox mainPanel;
+    @FXML
+    private VBox registerPanel;
+    @FXML
+    private VBox otpPanel;
+    @FXML
+    private VBox totpSetupPanel;
+    @FXML
+    private StackPane loadingOverlay;
+
+    @FXML
+    private Label emailDisplay;
+    @FXML
+    private TextField totpCodeField;
+    @FXML
+    private Button verifyTotpButton;
+    @FXML
+    private Button registerButton;
+    @FXML
+    private Text mainInfoText;
+
+    @FXML
+    private TextField registerEmailField;
+    @FXML
+    private Button sendOtpButton;
+    @FXML
+    private Button backToLoginButton;
+
+    @FXML
+    private Text otpInfoText;
+    @FXML
+    private TextField otpField;
+    @FXML
+    private Button verifyOtpButton;
+    @FXML
+    private Button resendOtpButton;
+
+    @FXML
+    private ImageView qrCodeImageView;
+    @FXML
+    private Text manualCodeText;
+    @FXML
+    private TextField setupTotpField;
+    @FXML
+    private Button confirmSetupButton;
+
+    @FXML
+    private Label loadingText;
+
     /**
-     * Initialise le contrôleur après que FXML est chargé
+     * Initializes the controller after FXML is loaded
      */
     @FXML
     private void initialize() {
-        // Boutons du panel principal
+        // Main panel buttons
         verifyTotpButton.setOnAction(event -> verifyTotpCode());
         registerButton.setOnAction(event -> showRegisterPanel());
-        
-        // Boutons du panel d'enregistrement
+
+        // Registration panel buttons
         sendOtpButton.setOnAction(event -> sendOtp());
         backToLoginButton.setOnAction(event -> showMainPanel());
-        
-        // Boutons du panel OTP
+
+        // OTP panel buttons
         verifyOtpButton.setOnAction(event -> verifyOtp());
         resendOtpButton.setOnAction(event -> sendOtp());
-        
-        // Boutons du panel de configuration TOTP
+
+        // TOTP setup panel buttons
         confirmSetupButton.setOnAction(event -> confirmTotpSetup());
     }
-    
+
     /**
-     * Définit l'application principale et configure le contrôleur
-     * @param mainApp Référence à l'application principale
-     * @param trustClient Client d'autorité de confiance
+     * Sets the main application and configures the controller
+     * 
+     * @param mainApp     Reference to the main application
+     * @param viewManager Reference to the view manager
+     * @param trustClient Trust authority client
      */
-    public void setMainApp(MainUI mainApp, TrustAuthorityClient trustClient) {
+    public void setup(MainUI mainApp, ViewManager viewManager, TrustAuthorityClient trustClient) {
         this.mainApp = mainApp;
+        this.viewManager = viewManager;
         this.trustClient = trustClient;
     }
-    
+
     /**
-     * Lance le processus d'authentification pour un utilisateur
-     * @param email Email de l'utilisateur
+     * Starts the authentication process for a user
+     * 
+     * @param email User's email
      */
     public void startAuthProcess(String email) {
         currentEmail = email;
-        
-        // Vérifier si l'utilisateur a un compte
-        showLoading("Vérification du compte...");
-        
+
+        // Check if the user has an account
+        showLoading("Verifying account...");
+
         Task<AccountStatus> checkTask = new Task<AccountStatus>() {
             @Override
             protected AccountStatus call() throws Exception {
                 return trustClient.checkAccountStatus(email);
             }
         };
-        
+
         checkTask.setOnSucceeded(e -> {
             hideLoading();
             AccountStatus status = checkTask.getValue();
-            
+
             if (status.exists() && status.isVerified()) {
-                // L'utilisateur a un compte vérifié, afficher l'écran d'authentification TOTP
+                // User has a verified account, show TOTP authentication screen
                 showTotpVerificationPanel(email);
             } else {
-                // L'utilisateur n'a pas de compte ou n'est pas vérifié, afficher l'écran d'enregistrement
+                // User doesn't have an account or is not verified, show registration screen
                 showRegisterPanel();
             }
         });
-        
+
         checkTask.setOnFailed(e -> {
             hideLoading();
-            Logger.error("Erreur lors de la vérification du compte: " + checkTask.getException().getMessage());
-            mainApp.showErrorAlert("Erreur lors de la vérification du compte", 
-                    "Impossible de vérifier le statut du compte: " + checkTask.getException().getMessage());
-            showRegisterPanel(); // Par défaut, proposer la création de compte
+            Logger.error("Error checking account: " + checkTask.getException().getMessage());
+            viewManager.showErrorAlert("Account Check Error",
+                    "Unable to verify account status: " + checkTask.getException().getMessage());
+            showRegisterPanel(); // Default to account creation
         });
-        
+
         new Thread(checkTask).start();
     }
-    
+
     /**
-     * Vérifie le code TOTP saisi par l'utilisateur
+     * Verifies the TOTP code entered by the user
      */
     private void verifyTotpCode() {
         String totpCode = totpCodeField.getText().trim();
-        
+
         if (totpCode.isEmpty()) {
-            mainApp.showErrorAlert("Code manquant", "Veuillez saisir le code généré par Google Authenticator.");
+            viewManager.showErrorAlert("Missing Code", "Please enter the code generated by Google Authenticator.");
             return;
         }
-        
-        showLoading("Vérification du code...");
-        
+
+        showLoading("Verifying code...");
+
         Task<Boolean> verifyTask = new Task<Boolean>() {
             @Override
             protected Boolean call() throws Exception {
                 return trustClient.verifyTOTP(currentEmail, totpCode);
             }
         };
-        
+
         verifyTask.setOnSucceeded(e -> {
             hideLoading();
             boolean isValid = verifyTask.getValue();
-            
+
             if (isValid) {
-                // Code valide, continuer avec le processus d'authentification principal
+                // Valid code, continue with main authentication process
                 mainApp.completeAuthentication(currentEmail, totpCode);
             } else {
-                mainApp.showErrorAlert("Code incorrect", "Le code saisi est incorrect. Veuillez réessayer.");
+                viewManager.showErrorAlert("Incorrect Code", "The code you entered is incorrect. Please try again.");
                 totpCodeField.clear();
                 totpCodeField.requestFocus();
             }
         });
-        
+
         verifyTask.setOnFailed(e -> {
             hideLoading();
-            Logger.error("Erreur lors de la vérification du code: " + verifyTask.getException().getMessage());
-            mainApp.showErrorAlert("Erreur de vérification", 
-                    "Impossible de vérifier le code: " + verifyTask.getException().getMessage());
+            Logger.error("Error verifying code: " + verifyTask.getException().getMessage());
+            viewManager.showErrorAlert("Verification Error",
+                    "Unable to verify code: " + verifyTask.getException().getMessage());
         });
-        
+
         new Thread(verifyTask).start();
     }
-    
+
     /**
-     * Envoie un code OTP à l'adresse email pour l'enregistrement
+     * Sends an OTP to the email address for registration
      */
     private void sendOtp() {
         String email = currentEmail;
-        
-        // Si nous sommes dans le panel d'enregistrement, utiliser l'email saisi
+
+        // If we're in the registration panel, use the entered email
         if (registerPanel.isVisible()) {
             email = registerEmailField.getText().trim();
             if (email.isEmpty() || !email.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$")) {
-                mainApp.showErrorAlert("Email invalide", "Veuillez saisir une adresse email valide.");
+                viewManager.showErrorAlert("Invalid Email", "Please enter a valid email address.");
                 return;
             }
             currentEmail = email;
         }
-        
+
         final String finalEmail = email;
-        showLoading("Envoi du code de vérification...");
-        
+        showLoading("Sending verification code...");
+
         Task<Boolean> otpTask = new Task<Boolean>() {
             @Override
             protected Boolean call() throws Exception {
                 return trustClient.requestRegistration(finalEmail);
             }
         };
-        
+
         otpTask.setOnSucceeded(e -> {
             hideLoading();
             boolean success = otpTask.getValue();
-            
+
             if (success) {
-                // Afficher le panel de saisie du code OTP
+                // Show OTP input panel
                 showOtpVerificationPanel(finalEmail);
             } else {
-                mainApp.showErrorAlert("Erreur d'envoi", 
-                        "Impossible d'envoyer le code de vérification. Veuillez réessayer.");
+                viewManager.showErrorAlert("Send Error",
+                        "Unable to send verification code. Please try again.");
             }
         });
-        
+
         otpTask.setOnFailed(e -> {
             hideLoading();
-            Logger.error("Erreur lors de l'envoi du code OTP: " + otpTask.getException().getMessage());
-            mainApp.showErrorAlert("Erreur d'envoi", 
-                    "Impossible d'envoyer le code de vérification: " + otpTask.getException().getMessage());
+            Logger.error("Error sending OTP: " + otpTask.getException().getMessage());
+            viewManager.showErrorAlert("Send Error",
+                    "Unable to send verification code: " + otpTask.getException().getMessage());
         });
-        
+
         new Thread(otpTask).start();
     }
-    
+
     /**
-     * Vérifie le code OTP saisi par l'utilisateur
+     * Verifies the OTP code entered by the user
      */
     private void verifyOtp() {
         String otp = otpField.getText().trim();
-        
+
         if (otp.isEmpty()) {
-            mainApp.showErrorAlert("Code manquant", "Veuillez saisir le code de vérification reçu par email.");
+            viewManager.showErrorAlert("Missing Code", "Please enter the verification code received by email.");
             return;
         }
-        
-        showLoading("Vérification du code...");
-        
+
+        showLoading("Verifying code...");
+
         Task<String> verifyTask = new Task<String>() {
             @Override
             protected String call() throws Exception {
                 return trustClient.verifyOtpAndSetupTOTP(currentEmail, otp);
             }
         };
-        
+
         verifyTask.setOnSucceeded(e -> {
             hideLoading();
             String qrCodeUri = verifyTask.getValue();
-            
+
             if (qrCodeUri != null) {
-                // Afficher le QR code pour Google Authenticator
+                // Show QR code for Google Authenticator
                 showTotpSetupPanel(qrCodeUri);
             } else {
-                mainApp.showErrorAlert("Code incorrect", 
-                        "Le code de vérification est incorrect ou expiré. Veuillez réessayer.");
+                viewManager.showErrorAlert("Incorrect Code",
+                        "The verification code is incorrect or expired. Please try again.");
                 otpField.clear();
                 otpField.requestFocus();
             }
         });
-        
+
         verifyTask.setOnFailed(e -> {
             hideLoading();
-            Logger.error("Erreur lors de la vérification du code OTP: " + verifyTask.getException().getMessage());
-            mainApp.showErrorAlert("Erreur de vérification", 
-                    "Impossible de vérifier le code: " + verifyTask.getException().getMessage());
+            Logger.error("Error verifying OTP: " + verifyTask.getException().getMessage());
+            viewManager.showErrorAlert("Verification Error",
+                    "Unable to verify code: " + verifyTask.getException().getMessage());
         });
-        
+
         new Thread(verifyTask).start();
     }
-    
+
     /**
-     * Confirme la configuration du code TOTP (Google Authenticator)
+     * Confirms TOTP setup (Google Authenticator)
      */
     private void confirmTotpSetup() {
         String code = setupTotpField.getText().trim();
-        
+
         if (code.isEmpty()) {
-            mainApp.showErrorAlert("Code manquant", "Veuillez saisir le code généré par Google Authenticator.");
+            viewManager.showErrorAlert("Missing Code", "Please enter the code generated by Google Authenticator.");
             return;
         }
-        
-        showLoading("Vérification du code...");
-        
+
+        showLoading("Verifying code...");
+
         Task<Boolean> verifyTask = new Task<Boolean>() {
             @Override
             protected Boolean call() throws Exception {
                 return trustClient.verifyTOTP(currentEmail, code);
             }
         };
-        
+
         verifyTask.setOnSucceeded(e -> {
             hideLoading();
             boolean isValid = verifyTask.getValue();
-            
+
             if (isValid) {
-                mainApp.showInfoAlert("Configuration réussie", 
-                        "Votre compte a été configuré avec succès. Vous pouvez maintenant vous connecter.");
-                // Revenir à l'écran d'authentification TOTP
+                viewManager.showInfoAlert("Setup Successful",
+                        "Your account has been set up successfully. You can now log in.");
+                // Go back to TOTP authentication screen
                 showTotpVerificationPanel(currentEmail);
             } else {
-                mainApp.showErrorAlert("Code incorrect", "Le code saisi est incorrect. Veuillez réessayer.");
+                viewManager.showErrorAlert("Incorrect Code", "The code you entered is incorrect. Please try again.");
                 setupTotpField.clear();
                 setupTotpField.requestFocus();
             }
         });
-        
+
         verifyTask.setOnFailed(e -> {
             hideLoading();
-            Logger.error("Erreur lors de la vérification du code TOTP: " + verifyTask.getException().getMessage());
-            mainApp.showErrorAlert("Erreur de vérification", 
-                    "Impossible de vérifier le code: " + verifyTask.getException().getMessage());
+            Logger.error("Error verifying TOTP: " + verifyTask.getException().getMessage());
+            viewManager.showErrorAlert("Verification Error",
+                    "Unable to verify code: " + verifyTask.getException().getMessage());
         });
-        
+
         new Thread(verifyTask).start();
     }
-    
+
     /**
-     * Affiche le panel principal avec la vérification TOTP
+     * Shows the main panel with TOTP verification
      */
     private void showTotpVerificationPanel(String email) {
         mainPanel.setVisible(true);
         registerPanel.setVisible(false);
         otpPanel.setVisible(false);
         totpSetupPanel.setVisible(false);
-        
+
         emailDisplay.setText(email);
-        mainInfoText.setText("Veuillez saisir le code à 6 chiffres généré par Google Authenticator");
+        mainInfoText.setText("Please enter the 6-digit code generated by Google Authenticator");
         totpCodeField.clear();
         totpCodeField.requestFocus();
     }
-    
+
     /**
-     * Affiche le panel d'enregistrement (étape 1)
+     * Shows the registration panel (step 1)
      */
     private void showRegisterPanel() {
         mainPanel.setVisible(false);
         registerPanel.setVisible(true);
         otpPanel.setVisible(false);
         totpSetupPanel.setVisible(false);
-        
+
         registerEmailField.setText(currentEmail);
         registerEmailField.requestFocus();
     }
-    
+
     /**
-     * Affiche le panel de vérification OTP (étape 2)
+     * Shows the OTP verification panel (step 2)
      */
     private void showOtpVerificationPanel(String email) {
         mainPanel.setVisible(false);
         registerPanel.setVisible(false);
         otpPanel.setVisible(true);
         totpSetupPanel.setVisible(false);
-        
-        otpInfoText.setText("Veuillez saisir le code de vérification envoyé à " + email);
+
+        otpInfoText.setText("Please enter the verification code sent to " + email);
         otpField.clear();
         otpField.requestFocus();
     }
-    
+
     /**
-     * Affiche le panel de configuration TOTP (étape 3)
+     * Shows the TOTP setup panel (step 3)
      */
     private void showTotpSetupPanel(String qrCodeUri) {
         mainPanel.setVisible(false);
         registerPanel.setVisible(false);
         otpPanel.setVisible(false);
         totpSetupPanel.setVisible(true);
-        
-        // Extraire le secret TOTP depuis l'URI (au format data:image/png;base64,...)
+
+        // Extract TOTP secret from URI (format data:image/png;base64,...)
         if (qrCodeUri.startsWith("data:image/png;base64,")) {
             String base64Image = qrCodeUri.substring("data:image/png;base64,".length());
             try {
                 byte[] imageData = Base64.getDecoder().decode(base64Image);
                 Image qrCodeImage = new Image(new ByteArrayInputStream(imageData));
                 qrCodeImageView.setImage(qrCodeImage);
-                
-                // Récupérer le secret TOTP depuis le client
+
+                // Get TOTP secret from client
                 this.totpSecret = trustClient.getTotpSecret();
                 if (this.totpSecret != null) {
                     manualCodeText.setText(this.totpSecret);
                 } else {
-                    manualCodeText.setText("(Secret non disponible)");
+                    manualCodeText.setText("(Secret not available)");
                 }
             } catch (Exception ex) {
-                Logger.error("Erreur lors du décodage du QR code: " + ex.getMessage());
+                Logger.error("Error decoding QR code: " + ex.getMessage());
                 qrCodeImageView.setImage(null);
-                manualCodeText.setText("(Erreur de décodage)");
+                manualCodeText.setText("(Decoding error)");
             }
         } else {
-            Logger.error("Format de QR code non supporté: " + qrCodeUri);
+            Logger.error("Unsupported QR code format: " + qrCodeUri);
         }
-        
+
         setupTotpField.clear();
         setupTotpField.requestFocus();
     }
-    
+
     /**
-     * Affiche le panel principal
+     * Shows the main panel
      */
     private void showMainPanel() {
         mainPanel.setVisible(true);
@@ -406,17 +433,17 @@ public class AuthController {
         otpPanel.setVisible(false);
         totpSetupPanel.setVisible(false);
     }
-    
+
     /**
-     * Affiche l'overlay de chargement avec un message
+     * Shows the loading overlay with a message
      */
     private void showLoading(String message) {
         loadingText.setText(message);
         loadingOverlay.setVisible(true);
     }
-    
+
     /**
-     * Masque l'overlay de chargement
+     * Hides the loading overlay
      */
     private void hideLoading() {
         loadingOverlay.setVisible(false);
