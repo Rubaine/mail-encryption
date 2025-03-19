@@ -9,6 +9,7 @@ module fr.insa.crypto {
 
     requires activation;
     requires owasp.encoder;
+    requires totp;
     opens fr.insa.crypto to javafx.fxml;
     exports fr.insa.crypto;
 }

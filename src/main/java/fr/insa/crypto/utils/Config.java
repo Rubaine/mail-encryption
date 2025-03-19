@@ -5,7 +5,7 @@ package fr.insa.crypto.utils;
  */
 public class Config {
     // Paramètres de configuration pour le serveur d'autorité de confiance
-    public static final String TRUST_AUTHORITY_URL = getEnv("TRUST_AUTHORITY_URL", "http://cosplit.fr:8081");
+    public static final String TRUST_AUTHORITY_URL = getEnv("TRUST_AUTHORITY_URL", "http://localhost:8081");
     public static final int TRUST_AUTHORITY_PORT = Integer.parseInt(getEnv("TRUST_AUTHORITY_PORT", "8080"));
     
     // Paramètres email
@@ -24,6 +24,13 @@ public class Config {
     
     // Mode débogage
     public static boolean DEBUG_MODE = Boolean.parseBoolean(getEnv("DEBUG_MODE", "false"));
+    
+    // Initialisation statique pour configurer Logger
+    static {
+        // Activer le mode debug si DEBUG_MODE est true
+        Logger.setDebugEnabled(DEBUG_MODE);
+        Logger.info("Mode DEBUG: " + (DEBUG_MODE ? "activé" : "désactivé"));
+    }
     
     /**
      * Récupère une variable d'environnement ou utilise la valeur par défaut

@@ -54,3 +54,4 @@ bin/
 *.pdf
 
 .vscode/
+.env

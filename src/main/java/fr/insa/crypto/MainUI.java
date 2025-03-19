@@ -6,6 +6,8 @@ import fr.insa.crypto.mail.MailReceiver;
 import fr.insa.crypto.mail.MailSender;
 import fr.insa.crypto.mail.SecureAttachmentHandler;
 import fr.insa.crypto.trustAuthority.KeyPair;
+import fr.insa.crypto.trustAuthority.TrustAuthorityClient;
+import fr.insa.crypto.utils.Config;
 import fr.insa.crypto.utils.Logger;
 import it.unisa.dia.gas.jpbc.Element;
 import javafx.application.Application;
@@ -48,6 +50,9 @@ public class MainUI extends Application {
     // Dimensions constantes pour assurer l'uniformité
     private static final double WINDOW_WIDTH = 1000;
     private static final double WINDOW_HEIGHT = 700;
+
+    private TrustAuthorityClient trustClient;
+    private String totpCode; // Code TOTP validé pour l'authentification
 
     @Override
     public void start(@SuppressWarnings("exports") Stage primaryStage) throws Exception {
@@ -108,16 +113,16 @@ public class MainUI extends Application {
                 @Override
                 protected Boolean call() throws Exception {
                     try {
+                        // Étape 1: Authentification SMTP/IMAP traditionnelle
                         auth = new Authentication(email, password);
                         Session session = auth.getAuthenticatedSession();
-
-                        // Récupérer les éléments cryptographiques
-                        ibeEngine = auth.getIbeEngine();
-                        userKeyPair = auth.getUserKeyPair();
 
                         // Tester la connexion en créant un récepteur d'emails
                         mailReceiver = new MailReceiver();
                         mailReceiver.connect(email, password);
+
+                        // Initialiser le client de l'autorité de confiance
+                        trustClient = new TrustAuthorityClient(Config.TRUST_AUTHORITY_URL);
 
                         currentEmail = email;
                         currentAppKey = password;
@@ -131,17 +136,18 @@ public class MainUI extends Application {
 
             loginTask.setOnSucceeded(e -> {
                 loginButton.setDisable(false);
-                if (loginProgress != null) {
-                    loginProgress.setVisible(false);
+                if (progressContainer != null) {
+                    progressContainer.setVisible(false);
                 }
 
                 if (loginTask.getValue()) {
-                    // Connexion réussie
+                    // Étape 1 réussie (SMTP/IMAP)
+                    // Continuer avec l'authentification 2FA via Google Authenticator
                     try {
-                        showRecept(email);
+                        showAuth(email);
                     } catch (Exception ex) {
                         ex.printStackTrace();
-                        showErrorAlert("Erreur lors de l'affichage de la boîte de réception: " + ex.getMessage());
+                        showErrorAlert("Erreur lors de l'authentification 2FA: " + ex.getMessage());
                     }
                 } else {
                     // Échec de connexion
@@ -151,8 +157,8 @@ public class MainUI extends Application {
 
             loginTask.setOnFailed(e -> {
                 loginButton.setDisable(false);
-                if (loginProgress != null) {
-                    loginProgress.setVisible(false);
+                if (progressContainer != null) {
+                    progressContainer.setVisible(false);
                 }
                 showErrorAlert("Erreur d'authentification: " + loginTask.getException().getMessage());
             });
@@ -163,9 +169,181 @@ public class MainUI extends Application {
         adaptWindowSize(false);
     }
 
-    private void showErrorAlert(String message) {
+    /**
+     * Affiche l'interface d'authentification 2FA
+     */
+    private void showAuth(String email) throws Exception {
+        FXMLLoader loader = new FXMLLoader(getClass().getResource("auth.fxml"));
+        Parent root = loader.load();
+        Scene scene = new Scene(root);
+        setSceneAndShow(scene, false);
+
+        // Récupérer le contrôleur et configurer la référence à MainUI
+        AuthController authController = loader.getController();
+        authController.setMainApp(this, trustClient);
+
+        // Démarrer le processus d'authentification
+        authController.startAuthProcess(email);
+    }
+
+    /**
+     * Méthode appelée par AuthController quand l'authentification 2FA réussit
+     *
+     * @param email    Email de l'utilisateur
+     * @param totpCode Code TOTP validé
+     */
+    public void completeAuthentication(String email, String totpCode) {
+        this.totpCode = totpCode;
+        Logger.info("Début de la récupération des clés cryptographiques pour " + email);
+
+        // Afficher un indicateur de chargement
+        showProgressAlert("Finalisation de l'authentification", "Récupération des clés cryptographiques...");
+
+        // Tâche pour récupérer les clés cryptographiques
+        Task<Boolean> keyTask = new Task<Boolean>() {
+            @Override
+            protected Boolean call() throws Exception {
+                try {
+                    Logger.debug("Requête de clé privée via TrustAuthorityClient pour " + email);
+                    Logger.debug("URL du serveur: " + Config.TRUST_AUTHORITY_URL);
+                    
+                    // Récupérer les éléments cryptographiques avec 2FA
+                    long startTime = System.currentTimeMillis();
+                    Logger.debug("Début de requestPrivateKey()");
+                    userKeyPair = trustClient.requestPrivateKey(email, totpCode);
+                    Logger.debug("Clé privée récupérée en " + (System.currentTimeMillis() - startTime) + "ms");
+                    
+                    if (userKeyPair == null) {
+                        Logger.error("La paire de clés récupérée est null");
+                        throw new Exception("La paire de clés récupérée est null");
+                    }
+                    
+                    Logger.debug("Initialisation du moteur IBE avec les paramètres récupérés");
+                    ibeEngine = new IdentityBasedEncryption(trustClient.getParameters());
+                    Logger.info("Récupération des clés cryptographiques réussie pour " + email);
+                    return true;
+                } catch (Exception e) {
+                    Logger.error("Exception détaillée lors de la récupération des clés: " + e);
+                    e.printStackTrace();
+                    throw e;
+                }
+            }
+        };
+
+        keyTask.setOnSucceeded(e -> {
+            Logger.debug("Key task succeeded, hiding progress alert");
+            hideProgressAlert();
+            Logger.info("Tâche de récupération des clés terminée avec succès");
+
+            try {
+                // Authentification complète, montrer la boîte de réception
+                Logger.debug("Tentative d'affichage de la boîte de réception");
+                showRecept(email);
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                Logger.error("Exception lors de l'affichage de la boîte de réception: " + ex);
+                showErrorAlert("Erreur lors de l'affichage de la boîte de réception", ex.getMessage());
+            }
+        });
+
+        keyTask.setOnFailed(e -> {
+            hideProgressAlert();
+            Throwable exception = keyTask.getException();
+            Logger.error("Échec de la tâche de récupération des clés: " + exception);
+            
+            if (exception != null) {
+                exception.printStackTrace();
+                showErrorAlert("Erreur lors de la récupération des clés", 
+                    "Impossible de récupérer les clés cryptographiques: " + exception.getMessage());
+            } else {
+                showErrorAlert("Erreur lors de la récupération des clés",
+                    "Une erreur inconnue s'est produite pendant la récupération des clés.");
+            }
+
+            try {
+                // Retourner à l'écran de connexion
+                showPortal();
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+        });
+
+        // Activer le debug mode pour ce Thread
+        Logger.debug("Démarrage du thread de récupération des clés");
+        Thread keyThread = new Thread(keyTask);
+        keyThread.setName("KeyRetrievalThread");
+        keyThread.setDaemon(true);
+        keyThread.start();
+    }
+
+    // Variable pour stocker l'alerte de progression
+    private Alert progressAlert;
+    private ProgressIndicator progressIndicator;
+
+    /**
+     * Affiche une alerte avec un indicateur de progression
+     */
+    private void showProgressAlert(String title, String message) {
+        // Make sure any existing alert is closed first
+        hideProgressAlert();
+        
+        // Create the alert on the JavaFX application thread
+//        javafx.application.Platform.runLater(() -> {
+//            progressAlert = new Alert(AlertType.NONE);
+//            progressAlert.setTitle(title);
+//            progressAlert.setHeaderText(null);
+//            progressAlert.setContentText(message);
+//
+//            // Ajouter un indicateur de progression
+//            progressIndicator = new ProgressIndicator();
+//            progressIndicator.setPrefSize(50, 50);
+//            progressIndicator.setProgress(ProgressIndicator.INDETERMINATE_PROGRESS);
+//
+//            VBox content = new VBox(10);
+//            content.setAlignment(javafx.geometry.Pos.CENTER);
+//            content.getChildren().addAll(new Label(message), progressIndicator);
+//            progressAlert.getDialogPane().setContent(content);
+//
+//            // Rendre l'alerte non fermable par l'utilisateur
+//            progressAlert.getButtonTypes().clear();
+//
+//            // Make sure alert is initialized
+//            progressAlert.initOwner(primaryStage);
+//            progressAlert.show();
+//            Logger.debug("Progress alert shown: " + title);
+//        });
+    }
+
+    /**
+     * Cache l'alerte de progression
+     */
+    private void hideProgressAlert() {
+        if (progressAlert != null) {
+            // Ensure we're on the JavaFX application thread
+            if (javafx.application.Platform.isFxApplicationThread()) {
+                progressAlert.close();
+                progressAlert = null;
+                progressIndicator = null;
+            } else {
+                javafx.application.Platform.runLater(() -> {
+                    if (progressAlert != null) {
+                        progressAlert.close();
+                        progressAlert = null;
+                        progressIndicator = null;
+                    }
+                });
+            }
+            Logger.debug("Progress alert closed");
+        }
+    }
+
+    public void showErrorAlert(String message) {
+        showErrorAlert("Erreur", message);
+    }
+
+    public void showErrorAlert(String title, String message) {
         Alert alert = new Alert(AlertType.ERROR);
-        alert.setTitle("Erreur");
+        alert.setTitle(title);
         alert.setHeaderText(null);
         alert.setContentText(message);
         alert.showAndWait();
@@ -717,7 +895,7 @@ public class MainUI extends Application {
         adaptWindowSize(true);
     }
 
-    private void showInfoAlert(String title, String message) {
+    public void showInfoAlert(String title, String message) {
         Alert alert = new Alert(AlertType.INFORMATION);
         alert.setTitle(title);
         alert.setHeaderText(null);

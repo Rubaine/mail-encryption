@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.*?>
+<?import javafx.geometry.*?>
+<?import javafx.scene.image.*?>
+<?import javafx.scene.shape.Rectangle?>
+<?import javafx.scene.shape.Circle?>
+
+<StackPane xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" 
+         styleClass="login-background" stylesheets="@styles.css"
+         fx:controller="fr.insa.crypto.AuthController">
+    <children>
+        <!-- Background gradient -->
+        <Rectangle width="800.0" height="600.0" styleClass="login-gradient" />
+        
+        <!-- Main container -->
+        <VBox alignment="CENTER" maxWidth="500.0" spacing="0">
+            <!-- App Logo/Icon -->
+            <StackPane styleClass="logo-container">
+                <Circle radius="40.0" fill="#4285F4" />
+                <Text text="MS" fill="WHITE" styleClass="logo-text">
+                    <font>
+                        <Font name="System Bold" size="32.0" />
+                    </font>
+                </Text>
+            </StackPane>
+            
+            <!-- Stack of authentication screens -->
+            <StackPane>
+                <!-- 1. Main authentication panel -->
+                <VBox fx:id="mainPanel" alignment="CENTER" styleClass="login-panel" spacing="20.0" visible="true">
+                    <Text styleClass="app-title" text="Authentification" fill="#4285F4">
+                        <font>
+                            <Font name="System Bold" size="24.0" />
+                        </font>
+                    </Text>
+                    <Text fx:id="mainInfoText" text="Veuillez vous connecter avec Google Authenticator" styleClass="app-subtitle" />
+
+                    <VBox spacing="15.0" alignment="CENTER">
+                        <HBox alignment="CENTER_LEFT" spacing="10.0" styleClass="input-container">
+                            <Text text="Email:" />
+                            <Label fx:id="emailDisplay" text="user@example.com" styleClass="field-value" HBox.hgrow="ALWAYS" />
+                        </HBox>
+                        
+                        <VBox spacing="10.0">
+                            <Label text="Code Google Authenticator" styleClass="field-label" />
+                            <TextField fx:id="totpCodeField" promptText="Entrez le code à 6 chiffres" styleClass="text-field" maxWidth="200" alignment="CENTER" />
+                        </VBox>
+                        
+                        <Button fx:id="verifyTotpButton" styleClass="button-primary" text="VÉRIFIER" maxWidth="200">
+                            <VBox.margin>
+                                <Insets top="10.0" />
+                            </VBox.margin>
+                        </Button>
+                        
+                        <Button fx:id="registerButton" styleClass="button-secondary" text="Créer un compte" maxWidth="200">
+                            <VBox.margin>
+                                <Insets top="5.0" />
+                            </VBox.margin>
+                        </Button>
+                    </VBox>
+                </VBox>
+                
+                <!-- 2. Registration panel (Step 1: Email) -->
+                <VBox fx:id="registerPanel" alignment="CENTER" styleClass="login-panel" spacing="20.0" visible="false">
+                    <Text styleClass="app-title" text="Création de compte" fill="#4285F4">
+                        <font>
+                            <Font name="System Bold" size="24.0" />
+                        </font>
+                    </Text>
+                    <Text text="Nous allons envoyer un code de vérification à votre adresse email" styleClass="app-subtitle" />
+                    
+                    <VBox spacing="15.0" alignment="CENTER">
+                        <VBox spacing="10.0">
+                            <Label text="Email" styleClass="field-label" />
+                            <TextField fx:id="registerEmailField" promptText="votre@email.com" styleClass="text-field" />
+                        </VBox>
+                        
+                        <Button fx:id="sendOtpButton" styleClass="button-primary" text="ENVOYER LE CODE" maxWidth="200">
+                            <VBox.margin>
+                                <Insets top="10.0" />
+                            </VBox.margin>
+                        </Button>
+                        
+                        <Button fx:id="backToLoginButton" styleClass="button-secondary" text="Retour à l'authentification" maxWidth="200">
+                            <VBox.margin>
+                                <Insets top="5.0" />
+                            </VBox.margin>
+                        </Button>
+                    </VBox>
+                </VBox>
+                
+                <!-- 3. Registration panel (Step 2: OTP Verification) -->
+                <VBox fx:id="otpPanel" alignment="CENTER" styleClass="login-panel" spacing="20.0" visible="false">
+                    <Text styleClass="app-title" text="Vérification par email" fill="#4285F4">
+                        <font>
+                            <Font name="System Bold" size="24.0" />
+                        </font>
+                    </Text>
+                    <Text fx:id="otpInfoText" text="Veuillez saisir le code de vérification envoyé à votre@email.com" styleClass="app-subtitle" />
+                    
+                    <VBox spacing="15.0" alignment="CENTER">
+                        <VBox spacing="10.0">
+                            <Label text="Code de vérification" styleClass="field-label" />
+                            <TextField fx:id="otpField" promptText="Code à 6 chiffres" styleClass="text-field" maxWidth="200" alignment="CENTER" />
+                        </VBox>
+                        
+                        <Button fx:id="verifyOtpButton" styleClass="button-primary" text="VÉRIFIER" maxWidth="200">
+                            <VBox.margin>
+                                <Insets top="10.0" />
+                            </VBox.margin>
+                        </Button>
+                        
+                        <Button fx:id="resendOtpButton" styleClass="button-secondary" text="Renvoyer le code" maxWidth="200">
+                            <VBox.margin>
+                                <Insets top="5.0" />
+                            </VBox.margin>
+                        </Button>
+                    </VBox>
+                </VBox>
+                
+                <!-- 4. TOTP Setup panel (Google Authenticator) -->
+                <VBox fx:id="totpSetupPanel" alignment="CENTER" styleClass="login-panel" spacing="15.0" visible="false">
+                    <Text styleClass="app-title" text="Configuration Google Authenticator" fill="#4285F4">
+                        <font>
+                            <Font name="System Bold" size="22.0" />
+                        </font>
+                    </Text>
+                    <Text text="Scannez ce QR code avec l'application Google Authenticator" styleClass="app-subtitle" />
+                    
+                    <VBox spacing="15.0" alignment="CENTER">
+                        <ImageView fx:id="qrCodeImageView" fitHeight="180.0" fitWidth="180.0" preserveRatio="true" />
+                        
+                        <VBox spacing="5.0" alignment="CENTER">
+                            <Text text="Ou saisissez ce code manuellement:" styleClass="field-label" />
+                            <Text fx:id="manualCodeText" text="ABCDEF123456" styleClass="manual-code">
+                                <font>
+                                    <Font name="Courier New Bold" size="14.0" />
+                                </font>
+                            </Text>
+                        </VBox>
+                        
+                        <VBox spacing="10.0" alignment="CENTER">
+                            <Label text="Entrez le code généré par Google Authenticator" styleClass="field-label" />
+                            <TextField fx:id="setupTotpField" promptText="Code à 6 chiffres" styleClass="text-field" maxWidth="200" alignment="CENTER" />
+                        </VBox>
+                        
+                        <Button fx:id="confirmSetupButton" styleClass="button-primary" text="CONFIRMER" maxWidth="200">
+                            <VBox.margin>
+                                <Insets top="10.0" />
+                            </VBox.margin>
+                        </Button>
+                    </VBox>
+                </VBox>
+            </StackPane>
+        </VBox>
+        
+        <!-- Loading overlay -->
+        <StackPane fx:id="loadingOverlay" styleClass="spinner-overlay" visible="false">
+            <VBox alignment="CENTER" spacing="15">
+                <ProgressIndicator progress="-1" />
+                <Label fx:id="loadingText" text="Chargement en cours..." styleClass="loading-text" />
+            </VBox>
+        </StackPane>
+    </children>
+</StackPane>

@@ -42,10 +42,28 @@ public class Authentication {
         // 1. Authentifier l'utilisateur pour l'email
         authenticateEmail();
         
-        // 2. Se connecter à l'autorité de confiance et récupérer les clés
+        // 2. Se connecter à l'autorité de confiance
         try {
             trustClient = new TrustAuthorityClient(Config.TRUST_AUTHORITY_URL);
-            userKeyPair = trustClient.requestPrivateKey(email);
+            
+            // Note: La récupération des clés est reportée jusqu'à ce que l'authentification 2FA soit terminée
+            // userKeyPair et ibeEngine seront initialisés après la validation 2FA
+            
+            Logger.info("Connexion à l'autorité de confiance réussie, en attente d'authentification 2FA");
+        } catch (Exception e) {
+            Logger.error("Erreur lors de la connexion à l'autorité de confiance: " + e.getMessage());
+            throw new Exception("Impossible de se connecter à l'autorité de confiance: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Finalise l'authentification cryptographique avec un code TOTP
+     * @param totpCode Le code TOTP pour l'authentification à deux facteurs
+     * @throws Exception En cas d'erreur d'authentification
+     */
+    public void completeAuthentication(String totpCode) throws Exception {
+        try {
+            userKeyPair = trustClient.requestPrivateKey(email, totpCode);
             ibeEngine = new IdentityBasedEncryption(trustClient.getParameters());
             Logger.info("Authentification cryptographique réussie pour " + email);
         } catch (Exception e) {

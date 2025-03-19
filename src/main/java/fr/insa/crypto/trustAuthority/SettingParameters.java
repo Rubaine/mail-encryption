@@ -28,9 +28,10 @@ public class SettingParameters {
         this.masterKey = pairing.getZr().newRandomElement(); //choix de la clef du maitre
         this.publicKey = generator.duplicate().mulZn(masterKey); // calcule de la clef publique du système
     }
-    
+
     /**
      * Constructeur alternatif pour les sous-classes qui veulent initialiser les paramètres elles-mêmes
+     *
      * @param initialize Si false, ne pas initialiser les paramètres (ils seront définis par la sous-classe)
      */
     protected SettingParameters(boolean initialize) {

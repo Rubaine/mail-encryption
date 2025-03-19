@@ -106,7 +106,12 @@
             <version>20250107</version>
         </dependency>
 
-
+        <!-- Add TOTP library for Google Authenticator support -->
+        <dependency>
+            <groupId>dev.samstevens.totp</groupId>
+            <artifactId>totp</artifactId>
+            <version>1.7.1</version>
+        </dependency>
 
     </dependencies>
 

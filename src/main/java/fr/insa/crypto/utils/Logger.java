@@ -63,7 +63,7 @@ public class Logger {
     // Méthodes de journalisation
     public static void debug(String message) {
         if (debugEnabled) {
-            log(Level.DEBUG, message);
+            log(Level.DEBUG, "[DEBUG] " + message);
         }
     }
 
