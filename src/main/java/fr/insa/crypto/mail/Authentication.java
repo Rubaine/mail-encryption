@@ -62,14 +62,9 @@ public class Authentication {
      * @throws Exception En cas d'erreur d'authentification
      */
     public void completeAuthentication(String totpCode) throws Exception {
-        try {
-            userKeyPair = trustClient.requestPrivateKey(email, totpCode);
-            ibeEngine = new IdentityBasedEncryption(trustClient.getParameters());
-            Logger.info("Authentification cryptographique réussie pour " + email);
-        } catch (Exception e) {
-            Logger.error("Erreur lors de l'authentification cryptographique: " + e.getMessage());
-            throw new Exception("Impossible de récupérer les clés cryptographiques: " + e.getMessage());
-        }
+        Logger.info("Finalisation de l'authentification pour " + email + " avec TOTP");
+        // Rien à faire ici pour l'instant, les clés seront récupérées dans MainUI
+        // Cette méthode est appelée pour marquer que l'authentification 2FA est réussie
     }
     
     /**

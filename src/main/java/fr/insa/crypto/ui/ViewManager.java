@@ -10,6 +10,7 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
+import javafx.application.Platform;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -121,6 +122,17 @@ public class ViewManager {
         // Garantir que la fenêtre reste maximisée
         primaryStage.setMaximized(true);
         primaryStage.centerOnScreen();
+        
+        // Ajouter un handler pour les événements de focus pour maintenir la session active
+        scene.getWindow().addEventFilter(javafx.stage.WindowEvent.WINDOW_SHOWN, event -> {
+            Logger.debug("Fenêtre affichée - Session maintenue active");
+        });
+        
+        // Assurer que la fenêtre reste au premier plan pendant le changement de scène
+        Platform.runLater(() -> {
+            primaryStage.toFront();
+            primaryStage.requestFocus();
+        });
         
         primaryStage.show();
     }

@@ -6,7 +6,7 @@
 <?import javafx.scene.text.*?>
 
 <BorderPane stylesheets="@styles.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" 
-          fx:controller="fr.insa.crypto.ui.controllers.EmailController" prefHeight="1080" prefWidth="1920.0">
+          fx:controller="fr.insa.crypto.ui.controllers.EmailController" prefHeight="720" prefWidth="1280">
     <!-- En-tête -->
     <top>
         <HBox alignment="CENTER_LEFT" spacing="10" styleClass="header">

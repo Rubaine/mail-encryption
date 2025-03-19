@@ -1,15 +1,12 @@
 package fr.insa.crypto.ui.controllers;
 
 import fr.insa.crypto.MainUI;
-import fr.insa.crypto.mail.Authentication;
-import fr.insa.crypto.mail.MailReceiver;
 import fr.insa.crypto.ui.ViewManager;
 import fr.insa.crypto.utils.Logger;
-import javafx.concurrent.Task;
+import fr.insa.crypto.utils.SessionManager;
+import javafx.application.Platform;
 import javafx.fxml.FXML;
-import javafx.scene.control.Button;
-import javafx.scene.control.ProgressIndicator;
-import javafx.scene.control.TextField;
+import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 
@@ -17,110 +14,109 @@ import javafx.scene.layout.StackPane;
  * Controller for the login/portal screen
  */
 public class PortalController {
-    // UI components
     @FXML
     private TextField emailField;
     @FXML
-    private TextField passwordField;
+    private PasswordField passwordField;
     @FXML
     private Button loginButton;
     @FXML
-    private ProgressIndicator loginProgress;
-    @FXML
     private HBox progressContainer;
+    @FXML
+    private ProgressIndicator loginProgress;
     @FXML
     private StackPane loadingOverlay;
 
     private MainUI mainApp;
     private ViewManager viewManager;
+    private final SessionManager sessionManager = SessionManager.getInstance();
 
     /**
-     * Initializes the controller after FXML is loaded
+     * Initializes the controller
      */
     @FXML
     private void initialize() {
-        // No action yet, setup is needed first
-    }
-
-    /**
-     * Sets up the controller with necessary references
-     */
-    public void setup(MainUI mainApp, ViewManager viewManager) {
-        this.mainApp = mainApp;
-        this.viewManager = viewManager;
-
         // Set up login button action
         loginButton.setOnAction(event -> handleLogin());
     }
 
     /**
-     * Handles login button click
+     * Set up with main application reference
+     */
+    public void setup(MainUI mainApp, ViewManager viewManager) {
+        this.mainApp = mainApp;
+        this.viewManager = viewManager;
+        
+        // Check if we have stored credentials to auto-fill
+        if (sessionManager.getEmail() != null) {
+            emailField.setText(sessionManager.getEmail());
+            Logger.info("Email pré-rempli depuis SessionManager: " + sessionManager.getEmail());
+        }
+    }
+
+    /**
+     * Handles the login button action
      */
     private void handleLogin() {
-        String email = emailField.getText();
+        String email = emailField.getText().trim();
         String password = passwordField.getText();
 
-        if (email.isEmpty() || password.isEmpty()) {
-            viewManager.showErrorAlert("Missing Information", "Please enter your email and password");
+        // Validate inputs
+        if (email.isEmpty()) {
+            viewManager.showErrorAlert("Email Missing", "Please enter your email address.");
             return;
         }
 
-        // Show loading indicator
-        loginButton.setDisable(true);
-        if (progressContainer != null) {
-            progressContainer.setVisible(true);
+        if (password.isEmpty()) {
+            viewManager.showErrorAlert("Password Missing", "Please enter your password.");
+            return;
         }
 
-        // Background task for authentication
-        Task<Boolean> loginTask = new Task<Boolean>() {
+        // Show loading indicators
+        loginButton.setDisable(true);
+        progressContainer.setVisible(true);
+        loadingOverlay.setVisible(true);
+
+        // Use a JavaFX Service to handle background tasks properly
+        javafx.concurrent.Service<Void> loginService = new javafx.concurrent.Service<Void>() {
             @Override
-            protected Boolean call() throws Exception {
-                try {
-                    // Step 1: Traditional SMTP/IMAP authentication
-                    Authentication auth = new Authentication(email, password);
-                    auth.getAuthenticatedSession();
-
-                    // Test connection by creating mail receiver
-                    MailReceiver mailReceiver = new MailReceiver();
-                    mailReceiver.connect(email, password);
-
-                    // Success, store credentials in main app
-                    // mainApp.setCredentials(email, password);
-
-                    return true;
-                } catch (Exception e) {
-                    Logger.error("Authentication error: " + e.getMessage());
-                    return false;
-                }
+            protected javafx.concurrent.Task<Void> createTask() {
+                return new javafx.concurrent.Task<Void>() {
+                    @Override
+                    protected Void call() throws Exception {
+                        try {
+                            // Try to login (this now properly handles UI updates)
+                            mainApp.login(email, password);
+                        } catch (Exception e) {
+                            throw e; // Propagate exception to be handled in onFailed
+                        }
+                        return null;
+                    }
+                };
             }
         };
-
-        loginTask.setOnSucceeded(e -> {
+        
+        // Handle completion
+        loginService.setOnSucceeded(event -> {
             loginButton.setDisable(false);
-            if (progressContainer != null) {
-                progressContainer.setVisible(false);
-            }
-
-            if (loginTask.getValue()) {
-                // SMTP/IMAP authentication successful
-                // Continue with 2FA via Google Authenticator
-                mainApp.showTotpVerification(email);
-            } else {
-                // Login failed
-                viewManager.showErrorAlert("Authentication Failed",
-                        "Incorrect credentials or server connection problem");
-            }
+            progressContainer.setVisible(false);
+            passwordField.clear();
+            loadingOverlay.setVisible(false);
         });
-
-        loginTask.setOnFailed(e -> {
+        
+        // Handle errors
+        loginService.setOnFailed(event -> {
             loginButton.setDisable(false);
-            if (progressContainer != null) {
-                progressContainer.setVisible(false);
-            }
-            viewManager.showErrorAlert("Authentication Error",
-                    "Authentication failed: " + loginTask.getException().getMessage());
+            progressContainer.setVisible(false);
+            passwordField.clear();
+            loadingOverlay.setVisible(false);
+            
+            Throwable exception = loginService.getException();
+            viewManager.showErrorAlert("Login Failed", 
+                    "Authentication error: " + (exception != null ? exception.getMessage() : "Unknown error"));
         });
-
-        new Thread(loginTask).start();
+        
+        // Start the service
+        loginService.start();
     }
 }

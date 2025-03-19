@@ -75,7 +75,13 @@ public class TOTPVerifyController {
         Task<Boolean> verifyTask = new Task<Boolean>() {
             @Override
             protected Boolean call() throws Exception {
-                return trustClient.verifyTOTP(email, totpCode);
+                try {
+                    Logger.debug("Vérification du code TOTP pour " + email + ": " + totpCode);
+                    return trustClient.verifyTOTP(email, totpCode);
+                } catch (Exception e) {
+                    Logger.error("Erreur lors de la vérification TOTP: " + e.getMessage());
+                    throw e;
+                }
             }
         };
 
@@ -83,9 +89,20 @@ public class TOTPVerifyController {
             hideLoading();
             boolean isValid = verifyTask.getValue();
 
+            Logger.info("Résultat de la vérification TOTP: " + isValid + " pour " + email);
+            
             if (isValid) {
-                // Code valide, poursuivre l'authentification
-                mainApp.completeAuthentication(email, totpCode);
+                try {
+                    Logger.info("Validation TOTP réussie, redirection vers completeAuthentication...");
+                    // Code valide, poursuivre l'authentification
+                    mainApp.completeAuthentication(email, totpCode);
+                } catch (Exception ex) {
+                    Logger.error("Erreur lors de la complétion de l'authentification: " + ex.getMessage(), ex);
+                    ex.printStackTrace();
+                    viewManager.showErrorAlert("Erreur d'authentification", 
+                        "Erreur lors de la complétion de l'authentification: " + ex.getMessage() +
+                        "\n\nVeuillez réessayer de vous connecter.");
+                }
             } else {
                 viewManager.showErrorAlert("Code incorrect", 
                         "Le code saisi est incorrect. Veuillez réessayer.");

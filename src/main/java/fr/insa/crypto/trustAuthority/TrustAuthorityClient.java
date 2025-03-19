@@ -182,8 +182,8 @@ public class TrustAuthorityClient {
 
         // Préparer les données JSON
         JSONObject jsonInput = new JSONObject();
-        jsonInput.put("email", email); // Vérifier que la clé correspond exactement à celle attendue par le serveur
-        jsonInput.put("totp", totpCode); // Modifier "totpCode" en "totp" pour correspondre à ce que le serveur attend
+        jsonInput.put("email", email);
+        jsonInput.put("totp", totpCode);
         String jsonInputString = jsonInput.toString();
         
         Logger.debug("JSON de vérification TOTP: " + jsonInputString);
@@ -192,7 +192,7 @@ public class TrustAuthorityClient {
         try (OutputStream os = connection.getOutputStream()) {
             byte[] input = jsonInputString.getBytes(StandardCharsets.UTF_8);
             os.write(input, 0, input.length);
-            os.flush(); // Assurer que toutes les données sont envoyées
+            os.flush();
         }
 
         int responseCode = connection.getResponseCode();
@@ -230,14 +230,13 @@ public class TrustAuthorityClient {
         jsonInput.put("email", identity);
         jsonInput.put("totpCode", totpCode);
         String jsonInputString = jsonInput.toString();
-        Logger.debug("Envoi de la requête JSON: " + jsonInputString);
+        Logger.debug("Envoi de la requête JSON pour clé privée: " + jsonInputString);
         
         // Envoi des données au serveur
         try (OutputStream os = connection.getOutputStream()) {
             byte[] input = jsonInputString.getBytes(StandardCharsets.UTF_8);
             os.write(input, 0, input.length);
             os.flush();
-            Logger.debug("Données envoyées au serveur");
         }
         
         Logger.debug("Attente de la réponse du serveur...");
@@ -251,31 +250,28 @@ public class TrustAuthorityClient {
         }
         
         String response = readResponse(connection);
-        Logger.debug("Réponse JSON reçue du serveur: " + response);
+        Logger.debug("Réponse JSON reçue du serveur (longueur: " + response.length() + ")");
         connection.disconnect();
-        Logger.debug("Connexion fermée");
         
         try {
             // Analyse de la réponse JSON
             JSONObject jsonResponse = new JSONObject(response);
             
+            // Vérifier que la réponse contient les champs attendus
+            if (!jsonResponse.has("identity") || !jsonResponse.has("privateKey")) {
+                throw new IOException("Invalid server response, missing required fields");
+            }
+            
             // Récupération de l'identité et de la clé privée
             String identityFromServer = jsonResponse.getString("identity");
-            Logger.debug("Identité reçue: " + identityFromServer);
-            
             String privateKeyBase64 = jsonResponse.getString("privateKey");
-            Logger.debug("Clé privée encodée en Base64 reçue (longueur: " + privateKeyBase64.length() + ")");
             
             byte[] privateKeyBytes = Base64.getDecoder().decode(privateKeyBase64);
-            Logger.debug("Clé privée décodée (longueur: " + privateKeyBytes.length + " octets)");
             
             // Recréer l'élément JPBC pour la clé privée
             Element privateKey = parameters.getPairing().getG1().newElementFromBytes(privateKeyBytes);
-            Logger.debug("Élément JPBC créé à partir des bytes");
             
-            KeyPair keyPair = new KeyPair(identityFromServer, privateKey);
-            Logger.debug("KeyPair créé avec succès");
-            return keyPair;
+            return new KeyPair(identityFromServer, privateKey);
         } catch (Exception e) {
             Logger.error("Exception lors du traitement de la réponse JSON: " + e.getMessage());
             throw new IOException("Failed to parse server response: " + e.getMessage());

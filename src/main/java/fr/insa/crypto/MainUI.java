@@ -9,7 +9,9 @@ import fr.insa.crypto.ui.ViewManager;
 import fr.insa.crypto.ui.controllers.*;
 import fr.insa.crypto.utils.Config;
 import fr.insa.crypto.utils.Logger;
+import fr.insa.crypto.utils.SessionManager;
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.stage.Stage;
 
 import javax.mail.Message;
@@ -27,6 +29,9 @@ public class MainUI extends Application {
     private KeyPair userKeyPair;
     private IdentityBasedEncryption ibeEngine;
     private Message currentMessage;
+    
+    // Gestionnaire de session
+    private final SessionManager sessionManager = SessionManager.getInstance();
 
     @Override
     public void start(Stage primaryStage) {
@@ -74,18 +79,31 @@ public class MainUI extends Application {
      */
     public void login(String email, String password) {
         try {
+            // Store credentials in SessionManager
+            sessionManager.storeCredentials(email, password);
+            Logger.info("Identifiants stockés dans le SessionManager pour " + email);
+            
             // First step: authenticate with email and password
             currentAuth = new Authentication(email, password);
+            
+            // Store auth session in SessionManager
+            sessionManager.storeAuthSession(currentAuth);
+            Logger.info("Session d'authentification stockée dans le SessionManager");
             
             // Initialize mail receiver
             currentMailReceiver = new MailReceiver();
             currentMailReceiver.connect(email, password);
+            Logger.info("MailReceiver connecté pour " + email);
             
-            // Start 2FA process
-            startAuthProcess(email);
+            // Start 2FA process - Ensure this happens on the JavaFX thread
+            Platform.runLater(() -> {
+                startAuthProcess(email);
+            });
         } catch (Exception e) {
             Logger.error("Login failed: " + e.getMessage());
-            viewManager.showErrorAlert("Login Failed", "Authentication error: " + e.getMessage());
+            Platform.runLater(() -> {
+                viewManager.showErrorAlert("Login Failed", "Authentication error: " + e.getMessage());
+            });
         }
     }
 
@@ -134,16 +152,59 @@ public class MainUI extends Application {
      */
     public void completeAuthentication(String email, String totpCode) {
         try {
-            // Finalize authentication with 2FA code
-            if (currentAuth != null) {
-                currentAuth.completeAuthentication(totpCode);
-            } else {
-                throw new Exception("Authentication session expired");
+            // Log authentication state
+            Logger.info("Tentative de complétion de l'authentification pour: " + email);
+            
+            // Check if we have an auth session, otherwise try to recover from SessionManager
+            if (currentAuth == null) {
+                currentAuth = sessionManager.getAuthSession();
+                Logger.info("État currentAuth depuis SessionManager: " + (currentAuth != null ? "récupéré" : "null"));
             }
             
+            // If still null, try to recreate using stored credentials
+            if (currentAuth == null) {
+                Logger.warning("Session expirée, tentative de reconnexion automatique via SessionManager...");
+                
+                if (sessionManager.hasCredentialsFor(email)) {
+                    try {
+                        // Recreate authentication
+                        String storedPassword = sessionManager.getPassword();
+                        currentAuth = new Authentication(email, storedPassword);
+                        Logger.info("Réauthentification réussie pour " + email);
+                        
+                        // Reconnect mail receiver if needed
+                        if (currentMailReceiver == null) {
+                            currentMailReceiver = new MailReceiver();
+                            currentMailReceiver.connect(email, storedPassword);
+                            Logger.info("MailReceiver reconnecté pour " + email);
+                        }
+                    } catch (Exception e) {
+                        Logger.error("Échec de reconnexion automatique: " + e.getMessage());
+                        viewManager.showErrorAlert("Session expirée", 
+                            "Impossible de rétablir votre session. Veuillez vous reconnecter.");
+                        showLoginScreen();
+                        return;
+                    }
+                } else {
+                    Logger.error("Identifiants non disponibles dans SessionManager pour la reconnexion");
+                    viewManager.showInfoAlert("Authentification incomplète", 
+                        "La session d'authentification a expiré. Veuillez vous reconnecter.");
+                    showLoginScreen();
+                    return;
+                }
+            }
+            
+            // Finalize authentication with 2FA code
+            Logger.info("Appel de completeAuthentication sur currentAuth pour " + email);
+            currentAuth.completeAuthentication(totpCode);
+            
             // Get encryption keys and engine
+            Logger.info("Demande de clé privée au serveur d'autorité...");
             userKeyPair = trustClient.requestPrivateKey(email, totpCode);
+            Logger.info("Clé privée obtenue pour " + email);
+            
             ibeEngine = new IdentityBasedEncryption(trustClient.getParameters());
+            Logger.info("Moteur de chiffrement IBE initialisé");
             
             // Show main inbox screen
             showReceptView();
@@ -220,6 +281,9 @@ public class MainUI extends Application {
         userKeyPair = null;
         ibeEngine = null;
         currentMessage = null;
+        
+        // Clear session manager
+        sessionManager.clearSession();
         
         // Show login screen
         showLoginScreen();
