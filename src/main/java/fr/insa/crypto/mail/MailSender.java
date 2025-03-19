@@ -9,6 +9,7 @@ import javax.mail.Message;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
 
+import fr.insa.crypto.utils.Config;
 import fr.insa.crypto.utils.Logger;
 
 /**
@@ -17,6 +18,18 @@ import fr.insa.crypto.utils.Logger;
 public class MailSender {
     public static void sendEmail(Session session, String toEmail, String subject, String body) {
         try {
+            // Valider l'adresse email du destinataire
+            if (toEmail == null || toEmail.trim().isEmpty()) {
+                Logger.error("L'adresse email du destinataire est null ou vide");
+                throw new IllegalArgumentException("L'adresse email du destinataire ne peut pas être null ou vide");
+            }
+            
+            // Vérifier le format de l'adresse email
+            if (!Config.isValidEmail(toEmail)) {
+                Logger.error("Format d'adresse email invalide: " + toEmail);
+                throw new IllegalArgumentException("Format d'adresse email invalide: " + toEmail);
+            }
+            
             MimeMessage msg = new MimeMessage(session);
             // set message headers
             msg.addHeader("Content-type", "text/HTML; charset=UTF-8");
@@ -40,6 +53,7 @@ public class MailSender {
 
             Logger.info("EMail Sent Successfully!!");
         } catch (Exception e) {
+            Logger.error("Erreur lors de l'envoi de l'email: " + e.getMessage());
             e.printStackTrace();
         }
     }
@@ -55,6 +69,18 @@ public class MailSender {
     public static void sendEmailWithAttachments(Session session, String toEmail, String subject, 
                                               String body, AttachmentHandler attachmentHandler) {
         try {
+            // Valider l'adresse email du destinataire
+            if (toEmail == null || toEmail.trim().isEmpty()) {
+                Logger.error("L'adresse email du destinataire est null ou vide");
+                throw new IllegalArgumentException("L'adresse email du destinataire ne peut pas être null ou vide");
+            }
+            
+            // Vérifier le format de l'adresse email
+            if (!Config.isValidEmail(toEmail)) {
+                Logger.error("Format d'adresse email invalide: " + toEmail);
+                throw new IllegalArgumentException("Format d'adresse email invalide: " + toEmail);
+            }
+            
             MimeMessage msg = new MimeMessage(session);
             // set message headers
             msg.addHeader("Content-type", "text/HTML; charset=UTF-8");
@@ -63,6 +89,8 @@ public class MailSender {
 
             msg.setFrom(new InternetAddress(session.getProperty("mail.smtp.user"),
                     session.getProperty("mail.smtp.username")));
+
+            System.out.println("user : " + session.getProperty("mail.smtp.user"));
 
             msg.setReplyTo(InternetAddress.parse(session.getProperty("mail.smtp.user"), false));
 

@@ -1,131 +1,143 @@
 package fr.insa.crypto.mail;
 
-import javax.mail.*;
+import java.util.Properties;
+import javax.mail.PasswordAuthentication;
+import javax.mail.Session;
 
+import fr.insa.crypto.trustAuthority.KeyPair;
+import fr.insa.crypto.trustAuthority.SettingParameters;
+import fr.insa.crypto.trustAuthority.TrustAuthorityClient;
+import fr.insa.crypto.encryption.IdentityBasedEncryption;
+import fr.insa.crypto.utils.Config;
 import fr.insa.crypto.utils.Logger;
 
-import java.util.Properties;
-
 /**
- * The Authentication class is responsible for configuring and providing an
- * authenticated
- * email session using the provided email and application key. It supports both
- * SSL and TLS
- * configurations for connecting to the SMTP server.
+ * Gère l'authentification email et la récupération des clés cryptographiques
  */
 public class Authentication {
-    private String email;
-    private String appKey;
-    private Properties properties;
-
-    public Authentication(String email, String appKey) {
-        this(email, appKey, false);
-    }
+    private final String email;
+    private final String password;
+    private Session session;
+    
+    // Paramètres pour la cryptographie IBE
+    private TrustAuthorityClient trustClient;
+    private KeyPair userKeyPair;
+    private IdentityBasedEncryption ibeEngine;
 
     /**
-     * Constructs an Authentication object with the specified email, appKey, and SSL
-     * usage.
-     *
-     * @param email  the email address to be used for authentication
-     * @param appKey the application key or password for the email account
-     * @param useSSL a boolean indicating whether to use SSL for the connection
-     *
-     *               This constructor initializes the SMTP properties based on the
-     *               useSSL parameter.
-     *               If useSSL is true, it configures the properties for SSL
-     *               connection on port 465.
-     *               Otherwise, it configures the properties for TLS connection on
-     *               port 587.
-     *               Additionally, it sets the connection timeout and read timeout
-     *               to 10 seconds.
-     *
-     *               The configuration details are logged using the Logger.
+     * Constructeur qui initialise l'authentification email et cryptographique
+     * @param email L'adresse email de l'utilisateur
+     * @param password Le mot de passe ou clé d'application
+     * @throws Exception En cas d'erreur d'authentification
      */
-    public Authentication(String email, String appKey, boolean useSSL) {
+    public Authentication(String email, String password) throws Exception {
         this.email = email;
-        this.appKey = appKey;
-        this.properties = new Properties();
-
-        if (useSSL) {
-            properties.put("mail.smtp.host", "smtp.gmail.com");
-            properties.put("mail.smtp.socketFactory.port", "465");
-            properties.put("mail.smtp.socketFactory.class", "javax.net.ssl.SSLSocketFactory");
-            properties.put("mail.smtp.auth", "true");
-            properties.put("mail.smtp.port", "465");
-            properties.put("mail.smtp.ssl.trust", "smtp.gmail.com");
-        } else {
-            properties.put("mail.smtp.host", "smtp.gmail.com");
-            properties.put("mail.smtp.port", "587");
-            properties.put("mail.smtp.auth", "true");
-            properties.put("mail.smtp.starttls.enable", "true");
-            properties.put("mail.smtp.ssl.trust", "smtp.gmail.com");
-            properties.put("mail.smtp.ssl.protocols", "TLSv1.2");
+        this.password = password;
+        
+        // Validation de l'adresse email
+        if (!Config.isValidEmail(email)) {
+            throw new IllegalArgumentException("Format d'adresse email invalide: " + email);
         }
+        
+        // 1. Authentifier l'utilisateur pour l'email
+        authenticateEmail();
+        
+        // 2. Se connecter à l'autorité de confiance et récupérer les clés
+        try {
+            trustClient = new TrustAuthorityClient(Config.TRUST_AUTHORITY_URL);
+            userKeyPair = trustClient.requestPrivateKey(email);
+            ibeEngine = new IdentityBasedEncryption(trustClient.getParameters());
+            Logger.info("Authentification cryptographique réussie pour " + email);
+        } catch (Exception e) {
+            Logger.error("Erreur lors de l'authentification cryptographique: " + e.getMessage());
+            throw new Exception("Impossible de récupérer les clés cryptographiques: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Authentification auprès du serveur email
+     */
+    private void authenticateEmail() throws Exception {
+        Properties props = new Properties();
+        
+        // Configuration pour Gmail
+        props.put("mail.smtp.auth", "true");
+        props.put("mail.smtp.starttls.enable", "true");
+        props.put("mail.smtp.host", "smtp.gmail.com");
+        props.put("mail.smtp.port", "587");
+        props.put("mail.smtp.user", email);
+        props.put("mail.smtp.starttls.enable", "true");
+        props.put("mail.smtp.ssl.trust", "smtp.gmail.com");
+        props.put("mail.smtp.ssl.protocols", "TLSv1.2");
 
         // Ajout de l'adresse email comme propriété mail.smtp.user
-        properties.put("mail.smtp.user", email);
-        properties.put("mail.smtp.username", "Ruben");
+        props.put("mail.smtp.user", email);
+        props.put("mail.smtp.username", "Ruben");
 
         // Increase timeouts from 10 to 30 seconds
-        properties.put("mail.smtp.connectiontimeout", "30000");
-        properties.put("mail.smtp.timeout", "30000");
-        properties.put("mail.smtp.writetimeout", "30000");
+        props.put("mail.smtp.connectiontimeout", "30000");
+        props.put("mail.smtp.timeout", "30000");
+        props.put("mail.smtp.writetimeout", "30000");
 
-        Logger.info("Authentication configured for " + email + " with host " + properties.getProperty("mail.smtp.host")
-                + ":" + properties.getProperty("mail.smtp.port") +
-                (useSSL ? " using SSL" : " using TLS"));
+        props.put("mail.store.protocol", "imaps");
+        props.put("mail.imaps.host", "imap.gmail.com");
+        props.put("mail.imaps.port", "993");
+        
+        try {
+            session = Session.getInstance(props, new javax.mail.Authenticator() {
+                protected PasswordAuthentication getPasswordAuthentication() {
+                    return new PasswordAuthentication(email, password);
+                }
+            });
+            
+            Logger.info("Session email créée pour " + email);
+        } catch (Exception e) {
+            Logger.error("Erreur lors de l'authentification email: " + e.getMessage());
+            throw new Exception("Échec de l'authentification email: " + e.getMessage());
+        }
     }
-
+    
     /**
-     * Creates and returns an authenticated email session using the provided email
-     * and app key.
-     * 
-     * @return a Session object that is authenticated with the provided credentials.
+     * @return La session email authentifiée
      */
     public Session getAuthenticatedSession() {
-        Authenticator auth = new Authenticator() {
-            @Override
-            protected PasswordAuthentication getPasswordAuthentication() {
-                return new PasswordAuthentication(email, appKey);
-            }
-        };
-
-        return Session.getInstance(properties, auth);
+        return session;
     }
-
+    
     /**
-     * Logs out from the email session by clearing stored credentials.
+     * @return Le client de l'autorité de confiance
      */
-    public void logout() {
-        email = null;
-        appKey = null;
-        Logger.info("Logged out successfully.");
+    public TrustAuthorityClient getTrustClient() {
+        return trustClient;
     }
-
+    
     /**
-     * Retrieves the email address associated with this authentication.
-     *
-     * @return the email address as a String
+     * @return La paire de clés de l'utilisateur
+     */
+    public KeyPair getUserKeyPair() {
+        return userKeyPair;
+    }
+    
+    /**
+     * @return Le moteur de chiffrement IBE
+     */
+    public IdentityBasedEncryption getIbeEngine() {
+        return ibeEngine;
+    }
+    
+    /**
+     * @return L'adresse email authentifiée
      */
     public String getEmail() {
         return email;
     }
-
+    
     /**
-     * Retrieves the properties for the authentication.
-     *
-     * @return the properties used for authentication
+     * Déconnexion et nettoyage des ressources
      */
-    public Properties getProperties() {
-        return properties;
-    }
-
-    /**
-     * Retrieves the application key/password used for authentication.
-     *
-     * @return the application key/password as a String
-     */
-    public String getAppKey() {
-        return appKey;
+    public void logout() {
+        session = null;
+        userKeyPair = null;
+        Logger.info("Déconnexion effectuée pour " + email);
     }
 }

@@ -58,4 +58,8 @@ public class IdentityBasedEncryption {
 
         return AESCrypto.decrypt(C.getAescipher(), resultingAeskey); // déchiffrement AES
     }
+
+    public SettingParameters getParameters() {
+        return parameters;
+    }
 }

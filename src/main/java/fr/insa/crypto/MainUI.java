@@ -29,7 +29,11 @@ import fr.insa.crypto.mail.Authentication;
 import fr.insa.crypto.mail.MailSender;
 import fr.insa.crypto.mail.MailReceiver;
 import fr.insa.crypto.mail.AttachmentHandler;
+import fr.insa.crypto.mail.SecureAttachmentHandler;
+import fr.insa.crypto.encryption.IdentityBasedEncryption;
+import fr.insa.crypto.trustAuthority.KeyPair;
 import fr.insa.crypto.utils.Logger;
+import it.unisa.dia.gas.jpbc.Element;
 
 public class MainUI extends Application {
 
@@ -42,6 +46,10 @@ public class MainUI extends Application {
     private Message currentMessage;
     private File currentAttachment;
     private List<File> attachments = new ArrayList<>();
+    
+    // Ajout de champs pour la cryptographie
+    private IdentityBasedEncryption ibeEngine;
+    private KeyPair userKeyPair;
 
     @Override
     public void start(@SuppressWarnings("exports") Stage primaryStage) throws Exception {
@@ -63,10 +71,14 @@ public class MainUI extends Application {
             String email = emailField.getText();
             String password = passwordField.getText();
             
-            // Utiliser l'authentification réelle
+            // Utiliser l'authentification réelle avec cryptographie
             try {
                 auth = new Authentication(email, password);
                 Session session = auth.getAuthenticatedSession();
+                
+                // Récupérer les éléments cryptographiques
+                ibeEngine = auth.getIbeEngine();
+                userKeyPair = auth.getUserKeyPair();
                 
                 // Tester la connexion en créant un récepteur d'emails
                 mailReceiver = new MailReceiver();
@@ -245,7 +257,19 @@ public class MainUI extends Application {
             String subject = subjectField.getText();
             String body = messageArea.getText();
             
-            if (to.isEmpty() || subject.isEmpty() || body.isEmpty()) {
+            // Validation renforcée
+            if (to == null || to.trim().isEmpty()) {
+                showErrorAlert("L'adresse email du destinataire ne peut pas être vide");
+                return;
+            }
+            
+            // Vérifier le format de l'adresse email
+            if (!fr.insa.crypto.utils.Config.isValidEmail(to)) {
+                showErrorAlert("Format d'adresse email invalide: " + to);
+                return;
+            }
+            
+            if (subject.isEmpty() || body.isEmpty()) {
                 showErrorAlert("Veuillez remplir tous les champs obligatoires");
                 return;
             }
@@ -257,14 +281,24 @@ public class MainUI extends Application {
                     // Envoyer un email simple
                     MailSender.sendEmail(session, to, subject, body);
                 } else {
-                    // Envoyer un email avec pièces jointes
-                    AttachmentHandler attachmentHandler = new AttachmentHandler();
+                    // Création du gestionnaire de pièces jointes sécurisé avec chiffrement
+                    SecureAttachmentHandler secureHandler = new SecureAttachmentHandler(ibeEngine, userKeyPair);
                     
+                    // Ajouter chaque pièce jointe avec chiffrement automatique
                     for (File file : attachments) {
-                        attachmentHandler.addAttachment(file.getAbsolutePath());
+                        try {
+                            // Chiffrer le fichier pour le destinataire
+                            secureHandler.addEncryptedAttachment(file.getAbsolutePath(), to);
+                            Logger.info("Pièce jointe chiffrée: " + file.getName());
+                        } catch (Exception e) {
+                            Logger.error("Erreur lors du chiffrement de la pièce jointe " + file.getName() + ": " + e.getMessage());
+                            throw new Exception("Erreur lors du chiffrement de la pièce jointe " + file.getName() + ": " + e.getMessage());
+                        }
                     }
                     
-                    MailSender.sendEmailWithAttachments(session, to, subject, body, attachmentHandler);
+                    // Envoyer l'email avec les pièces jointes chiffrées
+                    MailSender.sendEmailWithAttachments(session, to, subject, 
+                        body + "\n\nCet email contient des pièces jointes chiffrées.", secureHandler);
                 }
                 
                 showInfoAlert("Message envoyé", "Votre message a été envoyé avec succès.");
@@ -327,6 +361,7 @@ public class MainUI extends Application {
                 Object content = currentMessage.getContent();
                 String messageContent = "";
                 boolean hasAttachment = false;
+                List<MimeBodyPart> attachmentParts = new ArrayList<>();
                 
                 if (content instanceof String) {
                     messageContent = (String) content;
@@ -340,6 +375,9 @@ public class MainUI extends Application {
                         } else {
                             // C'est une pièce jointe
                             hasAttachment = true;
+                            if (bodyPart instanceof MimeBodyPart) {
+                                attachmentParts.add((MimeBodyPart) bodyPart);
+                            }
                         }
                     }
                 }
@@ -348,9 +386,9 @@ public class MainUI extends Application {
                 
                 // Gérer les pièces jointes
                 if (hasAttachment) {
-                    attachmentStatus.setText("Ce message contient des pièces jointes");
+                    attachmentStatus.setText("Ce message contient des pièces jointes (chiffrées)");
                     attachmentButton.setDisable(false);
-                    attachmentButton.setText("Télécharger");
+                    attachmentButton.setText("Télécharger & Déchiffrer");
                     
                     attachmentButton.setOnAction(event -> {
                         try {
@@ -360,31 +398,55 @@ public class MainUI extends Application {
                             
                             if (directory != null) {
                                 // Récupérer et sauvegarder les pièces jointes
-                                Multipart multipart = (Multipart) currentMessage.getContent();
                                 int attachmentsSaved = 0;
+                                int attachmentsDecrypted = 0;
                                 
-                                for (int i = 0; i < multipart.getCount(); i++) {
-                                    BodyPart bodyPart = multipart.getBodyPart(i);
-                                    if (bodyPart.getDisposition() != null) {
-                                        // C'est une pièce jointe
+                                for (MimeBodyPart bodyPart : attachmentParts) {
+                                    try {
+                                        // Récupérer le nom du fichier
                                         String fileName = bodyPart.getFileName();
-                                        String filePath = directory.getAbsolutePath() + File.separator + fileName;
+                                        File tempFile = File.createTempFile("temp_attachment_", fileName);
                                         
-                                        if (bodyPart instanceof MimeBodyPart) {
-                                            MimeBodyPart mimeBodyPart = (MimeBodyPart) bodyPart;
-                                            mimeBodyPart.saveFile(filePath);
-                                            attachmentsSaved++;
+                                        // Sauvegarder la pièce jointe dans un fichier temporaire
+                                        bodyPart.saveFile(tempFile);
+                                        attachmentsSaved++;
+                                        
+                                        // Vérifier si c'est un fichier IBE chiffré
+                                        if (SecureAttachmentHandler.isIBEEncryptedFile(tempFile)) {
+                                            // C'est un fichier chiffré, le déchiffrer
+                                            Element privateKey = userKeyPair.getSk();
+                                            File decryptedFile = SecureAttachmentHandler.decryptFile(
+                                                tempFile, directory.getAbsolutePath(), privateKey, ibeEngine);
+                                            
+                                            Logger.info("Pièce jointe déchiffrée: " + decryptedFile.getName());
+                                            attachmentsDecrypted++;
+                                            
+                                            // Supprimer le fichier temporaire
+                                            tempFile.delete();
+                                        } else {
+                                            // C'est un fichier non chiffré, le copier dans le répertoire cible
+                                            File targetFile = new File(directory, fileName);
+                                            java.nio.file.Files.copy(
+                                                tempFile.toPath(), targetFile.toPath(), 
+                                                java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                                            
+                                            // Supprimer le fichier temporaire
+                                            tempFile.delete();
                                         }
+                                    } catch (Exception e) {
+                                        Logger.error("Erreur lors du traitement de la pièce jointe: " + e.getMessage());
                                     }
                                 }
                                 
-                                showInfoAlert("Pièces jointes téléchargées", 
-                                              attachmentsSaved + " pièce(s) jointe(s) téléchargée(s) dans " + 
-                                              directory.getAbsolutePath());
+                                String message = attachmentsSaved + " pièce(s) jointe(s) téléchargée(s)\n" +
+                                                attachmentsDecrypted + " pièce(s) jointe(s) déchiffrée(s)\n" +
+                                                "Dossier de destination: " + directory.getAbsolutePath();
+                                
+                                showInfoAlert("Pièces jointes traitées", message);
                             }
                         } catch (Exception e) {
-                            Logger.error("Erreur lors du téléchargement des pièces jointes: " + e.getMessage());
-                            showErrorAlert("Erreur lors du téléchargement des pièces jointes: " + e.getMessage());
+                            Logger.error("Erreur lors du traitement des pièces jointes: " + e.getMessage());
+                            showErrorAlert("Erreur lors du traitement des pièces jointes: " + e.getMessage());
                         }
                     });
                 } else {
@@ -425,7 +487,7 @@ public class MainUI extends Application {
     }
     
     private void updateAttachmentStatus(Text attachmentStatus) {
-        attachmentStatus.setText("Nombre de pièces jointes: " + attachments.size());
+        attachmentStatus.setText("Nombre de pièces jointes: " + attachments.size() + " (seront chiffrées automatiquement)");
     }
 
     public static void main(String[] args) {

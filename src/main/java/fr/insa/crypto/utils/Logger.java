@@ -37,6 +37,7 @@ public class Logger {
     private static boolean useColors = true; // Couleurs activées par défaut
     private static String logFilePath = "application.log";
     private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static boolean debugEnabled = false;
 
     // Méthodes de configuration
     public static void setLevel(Level level) {
@@ -55,9 +56,15 @@ public class Logger {
         useColors = enable;
     }
 
+    public static void setDebugEnabled(boolean enabled) {
+        debugEnabled = enabled;
+    }
+
     // Méthodes de journalisation
     public static void debug(String message) {
-        log(Level.DEBUG, message);
+        if (debugEnabled) {
+            log(Level.DEBUG, message);
+        }
     }
 
     public static void info(String message) {
