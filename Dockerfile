@@ -17,8 +17,8 @@ COPY params/ ./params/
 # Build the project (skip tests) with the shade plugin to create a fat JAR
 RUN mvn clean package -DskipTests
 
-# Use slim JDK image for runtime
-FROM eclipse-temurin:17-jre-alpine
+# Use standard JDK image for runtime (compatible with ARM64)
+FROM eclipse-temurin:17 
 
 WORKDIR /app
 
