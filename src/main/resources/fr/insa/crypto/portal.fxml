@@ -7,18 +7,21 @@
 <?import javafx.scene.shape.*?>
 <?import javafx.scene.image.*?>
 
-<StackPane xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" 
-         styleClass="login-background" stylesheets="@styles.css"
-         fx:controller="fr.insa.crypto.ui.controllers.PortalController">
-    <children>
-        <!-- Background gradient -->
-        <Rectangle width="800.0" height="600.0" styleClass="login-gradient" />
-        
-        <!-- Login container -->
-        <VBox alignment="CENTER" maxWidth="500.0" spacing="0">
-            <!-- App Logo/Icon -->
+<AnchorPane xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" 
+          styleClass="login-background" stylesheets="@styles.css"
+          fx:controller="fr.insa.crypto.ui.controllers.PortalController" prefHeight="720" prefWidth="1280">
+          
+    <!-- Background gradient couvrant toute la fenêtre -->
+    <Rectangle styleClass="login-gradient" AnchorPane.topAnchor="0.0" AnchorPane.bottomAnchor="0.0"
+               AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" />
+    
+    <!-- Container centré pour le login -->
+    <StackPane AnchorPane.topAnchor="0.0" AnchorPane.bottomAnchor="0.0"
+               AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0">
+        <VBox alignment="CENTER" spacing="0" maxWidth="450.0">
+            <!-- Logo -->
             <StackPane styleClass="logo-container">
-                <Circle radius="40.0" fill="#4285F4" />
+                <Circle radius="40.0" fill="#1a73e8" />
                 <Text text="MS" fill="WHITE" styleClass="logo-text">
                     <font>
                         <Font name="System Bold" size="32.0" />
@@ -26,45 +29,32 @@
                 </Text>
             </StackPane>
             
+            <!-- Panel de login -->
             <VBox alignment="CENTER" styleClass="login-panel" spacing="20.0">
-                <!-- Header -->
+                <!-- Titre de l'app -->
                 <VBox alignment="CENTER" spacing="5.0">
-                    <Text styleClass="app-title" text="Messenger Secure" fill="#4285F4">
+                    <Text styleClass="app-title" text="Messenger Secure" fill="#202124">
                         <font>
-                            <Font name="System Bold" size="32.0" />
+                            <Font name="System Bold" size="24.0" />
                         </font>
                     </Text>
-                    <Text text="Sécurisez vos communications" fill="#757575" styleClass="app-subtitle">
+                    <Text text="Connectez-vous pour accéder à vos messages" fill="#606060" styleClass="app-subtitle">
                         <font>
                             <Font size="14.0" />
                         </font>
                     </Text>
                 </VBox>
                 
-                <Separator styleClass="form-separator" />
-                
-                <!-- Login form -->
+                <!-- Formulaire de login -->
                 <VBox spacing="15.0">
                     <VBox spacing="8.0">
                         <Label text="Adresse email" styleClass="field-label" />
-                        <HBox spacing="10.0" styleClass="input-container">
-                            <StackPane styleClass="input-icon-container">
-                                <Rectangle width="20.0" height="20.0" fill="transparent" />
-                                <Text text="✉" styleClass="input-icon" />
-                            </StackPane>
-                            <TextField fx:id="emailField" promptText="votre@email.com" styleClass="text-field" HBox.hgrow="ALWAYS" />
-                        </HBox>
+                        <TextField fx:id="emailField" promptText="votre@email.com" styleClass="text-field" maxWidth="Infinity" />
                     </VBox>
                     
                     <VBox spacing="8.0">
                         <Label text="Mot de passe ou clé d'application" styleClass="field-label" />
-                        <HBox spacing="10.0" styleClass="input-container">
-                            <StackPane styleClass="input-icon-container">
-                                <Rectangle width="20.0" height="20.0" fill="transparent" />
-                                <Text text="🔒" styleClass="input-icon" />
-                            </StackPane>
-                            <PasswordField fx:id="passwordField" promptText="Votre mot de passe" styleClass="text-field" HBox.hgrow="ALWAYS" />
-                        </HBox>
+                        <PasswordField fx:id="passwordField" promptText="Votre mot de passe" styleClass="text-field" maxWidth="Infinity" />
                     </VBox>
                     
                     <VBox alignment="CENTER" spacing="15.0">
@@ -81,25 +71,23 @@
                     </VBox>
                 </VBox>
                 
-                <!-- Footer -->
-                <VBox alignment="CENTER" spacing="5.0">
-                    <Text text="Application sécurisée par cryptographie" styleClass="security-info">
-                        <VBox.margin>
-                            <Insets top="10.0" />
-                        </VBox.margin>
-                    </Text>
-                </VBox>
+                <!-- Pied de page -->
+                <Text text="Application sécurisée par cryptographie" styleClass="security-info">
+                    <VBox.margin>
+                        <Insets top="10.0" />
+                    </VBox.margin>
+                </Text>
             </VBox>
         </VBox>
-        
-        <!-- Overlay de chargement global -->
-        <StackPane fx:id="loadingOverlay" styleClass="spinner-overlay" visible="false">
-            <children>
-                <VBox alignment="CENTER" spacing="15">
-                    <ProgressIndicator progress="-1" />
-                    <Label text="Connexion en cours..." styleClass="loading-text" />
-                </VBox>
-            </children>
-        </StackPane>
-    </children>
-</StackPane>
+    </StackPane>
+    
+    <!-- Overlay de chargement -->
+    <StackPane fx:id="loadingOverlay" styleClass="spinner-overlay" visible="false"
+               AnchorPane.topAnchor="0.0" AnchorPane.bottomAnchor="0.0"
+               AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0">
+        <VBox alignment="CENTER" spacing="15">
+            <ProgressIndicator progress="-1" />
+            <Label text="Connexion en cours..." styleClass="loading-text" />
+        </VBox>
+    </StackPane>
+</AnchorPane>

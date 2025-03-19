@@ -1,92 +1,142 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
+<?import javafx.geometry.*?>
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 <?import javafx.scene.text.*?>
-<?import javafx.geometry.*?>
 
-<BorderPane prefHeight="700.0" prefWidth="1000.0" stylesheets="@styles.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" 
-          fx:controller="fr.insa.crypto.ui.controllers.ReceptController">
+<BorderPane stylesheets="@styles.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" 
+          fx:controller="fr.insa.crypto.ui.controllers.ReceptController" prefHeight="1080" prefWidth="1920.0">
+    
     <!-- En-tête -->
     <top>
-        <HBox alignment="CENTER_LEFT" styleClass="header" spacing="10" BorderPane.alignment="CENTER">
-            <children>
-                <Button fx:id="logoutButton" styleClass="button-secondary" text="Déconnexion" />
-                <Region HBox.hgrow="ALWAYS" />
-                <Text fx:id="connectedText" styleClass="user-email" text="Connecté à : user@example.com" />
-                <Button fx:id="refreshButton" styleClass="button-secondary" text="Actualiser" />
-                <!-- Indicateur de chargement pour l'actualisation -->
-                <ProgressIndicator fx:id="refreshProgress" progress="-1" visible="false" prefHeight="20.0" prefWidth="20.0" />
-            </children>
+        <HBox alignment="CENTER_LEFT" spacing="10" styleClass="header">
             <padding>
                 <Insets bottom="10.0" left="20.0" right="20.0" top="10.0" />
             </padding>
+            <Text fill="#1a73e8" styleClass="app-title" text="Messenger Secure">
+                <font>
+                    <Font name="System Bold" size="18.0" />
+                </font>
+            </Text>
+            <Region HBox.hgrow="ALWAYS" />
+            <HBox alignment="CENTER_LEFT" spacing="5.0" styleClass="search-container">
+                <TextField fx:id="searchField" prefWidth="300" promptText="Rechercher des emails">
+                    <padding>
+                        <Insets bottom="5.0" left="10.0" right="10.0" top="5.0" />
+                    </padding>
+                </TextField>
+                <Button fx:id="searchButton" styleClass="button-icon">
+                    <graphic>
+                        <Text text="🔍" />
+                    </graphic>
+                </Button>
+                <ProgressIndicator fx:id="searchProgress" prefHeight="16.0" prefWidth="16.0" progress="-1" visible="false" />
+            </HBox>
+            <Region HBox.hgrow="ALWAYS" />
+            <Text fx:id="connectedText" styleClass="user-email" text="Connecté à : user@example.com" />
+            <Button fx:id="logoutButton" styleClass="button-secondary" text="Déconnexion" />
         </HBox>
     </top>
     
     <!-- Contenu principal -->
     <center>
-        <StackPane>
-            <children>
-                <VBox spacing="5.0" fx:id="inboxContainer">
+        <BorderPane>
+            <!-- Barre de navigation latérale -->
+            <left>
+                <VBox styleClass="nav-sidebar" minWidth="180.0" maxWidth="220.0">
                     <padding>
-                        <Insets bottom="10.0" left="20.0" right="20.0" top="10.0" />
+                        <Insets top="20.0" right="10.0" bottom="20.0" left="10.0" />
                     </padding>
-                    <children>
-                        <!-- Barre d'action -->
-                        <HBox alignment="CENTER_LEFT" spacing="10.0">
-                            <children>
-                                <Button fx:id="newMessageButton" styleClass="button-primary" text="Nouveau message" />
-                                <Label text="Boîte de réception">
-                                    <font>
-                                        <Font name="System Bold" size="16.0" />
-                                    </font>
-                                </Label>
+                    <Button fx:id="newMessageButton" maxWidth="Infinity" styleClass="button-primary" text="Nouveau message">
+                        <VBox.margin>
+                            <Insets bottom="15.0" top="5.0" />
+                        </VBox.margin>
+                    </Button>
+                    
+                    <Button alignment="BASELINE_LEFT" maxWidth="Infinity" styleClass="nav-item, active" text="Boîte de réception">
+                        <graphic>
+                            <HBox alignment="CENTER_LEFT" spacing="10.0" HBox.hgrow="ALWAYS">
+                                <Text text="📩" />
+                                <Label text="Boîte de réception" HBox.hgrow="ALWAYS" />
+                                <Region HBox.hgrow="ALWAYS" />
                                 <Label fx:id="emailCountLabel" styleClass="badge" text="0" />
-                            </children>
-                            <VBox.margin>
-                                <Insets bottom="10.0" top="10.0" />
-                            </VBox.margin>
+                            </HBox>
+                        </graphic>
+                    </Button>
+                    
+                    <Separator>
+                        <VBox.margin>
+                            <Insets bottom="10.0" top="10.0" />
+                        </VBox.margin>
+                    </Separator>
+                    
+                    <Button fx:id="refreshButton" alignment="BASELINE_LEFT" maxWidth="Infinity" styleClass="nav-item">
+                        <graphic>
+                            <HBox alignment="CENTER_LEFT" spacing="10.0">
+                                <Text text="🔄" />
+                                <Label text="Actualiser" />
+                                <ProgressIndicator fx:id="refreshProgress" prefHeight="16.0" prefWidth="16.0" progress="-1" visible="false" />
+                            </HBox>
+                        </graphic>
+                    </Button>
+                    <VBox VBox.vgrow="ALWAYS" />
+                </VBox>
+            </left>
+            
+            <!-- Zone principale des emails -->
+            <center>
+                <StackPane>
+                    <VBox fx:id="inboxContainer">
+                        <!-- En-tête de la boîte de réception avec filtre -->
+                        <HBox alignment="CENTER_LEFT" spacing="10" styleClass="email-list-header">
+                            <padding>
+                                <Insets bottom="10.0" left="15.0" right="15.0" top="10.0" />
+                            </padding>
+                            <Text styleClass="section-title" text="Boîte de réception">
+                                <font>
+                                    <Font name="System Bold" size="14.0" />
+                                </font>
+                            </Text>
+                            <Region HBox.hgrow="ALWAYS" />
+                            <Label fx:id="resultsInfoLabel" text="Affichage 1-25 sur 100" />
                         </HBox>
                         
                         <!-- Liste des emails -->
-                        <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS" styleClass="email-list-container">
-                            <content>
-                                <StackPane>
-                                    <children>
-                                        <!-- Vue par défaut avec des emails - ListView pour afficher tous les messages -->
-                                        <ListView fx:id="emailListView" styleClass="email-list" VBox.vgrow="ALWAYS" />
-                                        
-                                        <!-- Vue pour boîte de réception vide - S'assurer que le bouton est toujours accessible -->
-                                        <VBox fx:id="emptyInboxView" alignment="CENTER" styleClass="empty-inbox" visible="false">
-                                            <children>
-                                                <Text styleClass="icon" text="📭" />
-                                                <Text text="Aucun message dans votre boîte de réception" />
-                                                <Text text="Les nouveaux messages apparaîtront ici" />
-                                                <Button fx:id="emptyRefreshButton" styleClass="button-secondary" text="Actualiser">
-                                                    <VBox.margin>
-                                                        <Insets top="15.0" />
-                                                    </VBox.margin>
-                                                </Button>
-                                            </children>
-                                        </VBox>
-                                    </children>
-                                </StackPane>
-                            </content>
-                        </ScrollPane>
-                    </children>
-                </VBox>
-                
-                <!-- Overlay de chargement global -->
-                <StackPane fx:id="loadingOverlay" styleClass="spinner-overlay" visible="false">
-                    <children>
+                        <ListView fx:id="emailListView" fixedCellSize="72.0" styleClass="email-list" VBox.vgrow="ALWAYS" />
+                        
+                        <!-- Barre de pagination -->
+                        <HBox alignment="CENTER" spacing="10" styleClass="pagination-bar">
+                            <padding>
+                                <Insets bottom="10.0" top="10.0" />
+                            </padding>
+                            <Button fx:id="prevPageButton" disable="true" styleClass="button-secondary" text="Précédent" />
+                            <Label fx:id="pageInfoLabel" text="Page 1/5" />
+                            <Button fx:id="nextPageButton" styleClass="button-secondary" text="Suivant" />
+                        </HBox>
+                    </VBox>
+                    
+                    <!-- Vue pour boîte de réception vide -->
+                    <VBox fx:id="emptyInboxView" alignment="CENTER" styleClass="empty-inbox" visible="false">
+                        <Text styleClass="icon" text="📭" />
+                        <Text text="Votre boîte de réception est vide" />
+                        <Text text="Les nouveaux messages apparaîtront ici" />
+                        <Button fx:id="emptyRefreshButton" styleClass="button-secondary" text="Actualiser">
+                            <VBox.margin>
+                                <Insets top="15.0" />
+                            </VBox.margin>
+                        </Button>
+                    </VBox>
+                    
+                    <!-- Overlay de chargement -->
+                    <StackPane fx:id="loadingOverlay" styleClass="spinner-overlay" visible="false">
                         <VBox alignment="CENTER" spacing="15">
                             <ProgressIndicator progress="-1" />
                             <Label text="Chargement en cours..." />
                         </VBox>
-                    </children>
+                    </StackPane>
                 </StackPane>
-            </children>
-        </StackPane>
+            </center>
+        </BorderPane>
     </center>
 </BorderPane>

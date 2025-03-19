@@ -3,10 +3,12 @@ package fr.insa.crypto.ui;
 import fr.insa.crypto.MainUI;
 import fr.insa.crypto.utils.Logger;
 import javafx.fxml.FXMLLoader;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 
 import java.io.IOException;
@@ -25,10 +27,16 @@ public class ViewManager {
     public static final String VIEW_RECEPT = "/fr/insa/crypto/recept.fxml";
     public static final String VIEW_SEND = "/fr/insa/crypto/send.fxml";
     public static final String VIEW_EMAIL = "/fr/insa/crypto/email.fxml";
+    
+    // Nouvelles constantes pour les vues séparées d'authentification
+    public static final String VIEW_REGISTER = "/fr/insa/crypto/register.fxml";
+    public static final String VIEW_OTP_VERIFY = "/fr/insa/crypto/otp-verify.fxml";
+    public static final String VIEW_TOTP_SETUP = "/fr/insa/crypto/totp-setup.fxml";
+    public static final String VIEW_TOTP_VERIFY = "/fr/insa/crypto/totp-verify.fxml";
 
-    // Window dimensions
-    private static final double WINDOW_WIDTH = 1000;
-    private static final double WINDOW_HEIGHT = 700;
+    // Window dimensions (utilisées comme base uniquement)
+    private static final double WINDOW_WIDTH = 1280;
+    private static final double WINDOW_HEIGHT = 720;
 
     // Main stage reference
     private final Stage primaryStage;
@@ -44,19 +52,24 @@ public class ViewManager {
      */
     public ViewManager(@SuppressWarnings("exports") Stage primaryStage, MainUI mainApplication) {
         this.primaryStage = primaryStage;
+        
         // Configure the primary stage
         primaryStage.setTitle("Messenger Secure");
-        primaryStage.setMinWidth(WINDOW_WIDTH);
-        primaryStage.setMinHeight(WINDOW_HEIGHT);
-        primaryStage.setMaxWidth(1920);
-        primaryStage.setMaxHeight(1080);
-
-        // Default dimensions
-        primaryStage.setWidth(WINDOW_WIDTH);
-        primaryStage.setHeight(WINDOW_HEIGHT);
-
-        // Center the window
+        
+        // Désactiver le redimensionnement
+        primaryStage.setResizable(false);
+        
+        // Récupérer la taille de l'écran
+//        Rectangle2D screenBounds = Screen.getPrimary().getVisualBounds();
+//
+//        primaryStage.setWidth(WINDOW_WIDTH);
+//        primaryStage.setHeight(WINDOW_HEIGHT);
+        
+        // Centrer la fenêtre
         primaryStage.centerOnScreen();
+        
+        // Mode maximisé en plein écran (pas en fullscreen)
+        primaryStage.setMaximized(true);
     }
 
     /**
@@ -103,28 +116,12 @@ public class ViewManager {
      * @param scene The scene to show
      */
     private void setSceneAndShow(Scene scene) {
-        // Store current dimensions to maintain window size
-        double currentWidth = primaryStage.getWidth();
-        double currentHeight = primaryStage.getHeight();
-
         primaryStage.setScene(scene);
-
-        // Maintain window size
-        if (primaryStage.isMaximized()) {
-            primaryStage.setMaximized(false);
-        }
-
-        // Maintain dimensions
-        if (primaryStage.isShowing()) {
-            primaryStage.setWidth(currentWidth);
-            primaryStage.setHeight(currentHeight);
-        } else {
-            // Default dimensions for first show
-            primaryStage.setWidth(WINDOW_WIDTH);
-            primaryStage.setHeight(WINDOW_HEIGHT);
-            primaryStage.centerOnScreen();
-        }
-
+        
+        // Garantir que la fenêtre reste maximisée
+        primaryStage.setMaximized(true);
+        primaryStage.centerOnScreen();
+        
         primaryStage.show();
     }
 

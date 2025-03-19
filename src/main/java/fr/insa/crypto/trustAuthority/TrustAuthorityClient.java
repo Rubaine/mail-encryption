@@ -177,21 +177,30 @@ public class TrustAuthorityClient {
         connection.setRequestMethod("POST");
         connection.setDoOutput(true);
         connection.setRequestProperty("Content-Type", "application/json");
+        
+        Logger.debug("Envoi de la vérification TOTP pour " + email);
 
         // Préparer les données JSON
         JSONObject jsonInput = new JSONObject();
-        jsonInput.put("email", email);
-        jsonInput.put("totpCode", totpCode);
+        jsonInput.put("email", email); // Vérifier que la clé correspond exactement à celle attendue par le serveur
+        jsonInput.put("totp", totpCode); // Modifier "totpCode" en "totp" pour correspondre à ce que le serveur attend
         String jsonInputString = jsonInput.toString();
+        
+        Logger.debug("JSON de vérification TOTP: " + jsonInputString);
 
         // Envoi des données au serveur
         try (OutputStream os = connection.getOutputStream()) {
             byte[] input = jsonInputString.getBytes(StandardCharsets.UTF_8);
             os.write(input, 0, input.length);
+            os.flush(); // Assurer que toutes les données sont envoyées
         }
 
         int responseCode = connection.getResponseCode();
+        Logger.debug("Code de réponse de vérification TOTP: " + responseCode);
+        
         String response = readResponse(connection);
+        Logger.debug("Réponse de vérification TOTP: " + response);
+        
         connection.disconnect();
 
         // Analyse de la réponse

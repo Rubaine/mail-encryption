@@ -90,7 +90,7 @@ public class Authentication {
 
         // Ajout de l'adresse email comme propriété mail.smtp.user
         props.put("mail.smtp.user", email);
-        props.put("mail.smtp.username", "Ruben");
+        props.put("mail.smtp.username", email);
 
         // Increase timeouts from 10 to 30 seconds
         props.put("mail.smtp.connectiontimeout", "30000");

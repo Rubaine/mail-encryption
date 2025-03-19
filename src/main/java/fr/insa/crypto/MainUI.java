@@ -6,215 +6,228 @@ import fr.insa.crypto.mail.MailReceiver;
 import fr.insa.crypto.trustAuthority.KeyPair;
 import fr.insa.crypto.trustAuthority.TrustAuthorityClient;
 import fr.insa.crypto.ui.ViewManager;
-import fr.insa.crypto.ui.controllers.AuthController;
-import fr.insa.crypto.ui.controllers.EmailController;
-import fr.insa.crypto.ui.controllers.PortalController;
-import fr.insa.crypto.ui.controllers.ReceptController;
-import fr.insa.crypto.ui.controllers.SendController;
+import fr.insa.crypto.ui.controllers.*;
 import fr.insa.crypto.utils.Config;
 import fr.insa.crypto.utils.Logger;
 import javafx.application.Application;
-import javafx.concurrent.Task;
 import javafx.stage.Stage;
 
-import java.io.IOException;
-
 import javax.mail.Message;
-import javax.mail.MessagingException;
-import javax.mail.Session;
 
 /**
- * Main UI class for the Messenger Secure application.
- * Controls the flow between different screens and handles business logic.
+ * Main application entry point
  */
 public class MainUI extends Application {
-
-    // Core components
     private ViewManager viewManager;
     private TrustAuthorityClient trustClient;
-
-    // Authentication state
-    private String currentEmail;
-    private String currentPassword;
-    // Mail components
-    private Authentication auth;
-    private Session mailSession;
-    private MailReceiver mailReceiver;
-
-    // Cryptography components
-    private IdentityBasedEncryption ibeEngine;
+    
+    // Current session state
+    private Authentication currentAuth;
+    private MailReceiver currentMailReceiver;
     private KeyPair userKeyPair;
+    private IdentityBasedEncryption ibeEngine;
+    private Message currentMessage;
 
     @Override
-    public void start(@SuppressWarnings("exports") Stage primaryStage) throws IOException {
-        // Initialize ViewManager with primary stage
-        viewManager = new ViewManager(primaryStage, this);
-
-        // Initialize trust authority client
-        trustClient = new TrustAuthorityClient(Config.TRUST_AUTHORITY_URL);
-
-        // Show login portal
-        showLoginPortal();
+    public void start(Stage primaryStage) {
+        try {
+            // Initialize UI view manager
+            viewManager = new ViewManager(primaryStage, this);
+            
+            // Connect to trust authority
+            connectToTrustAuthority();
+            
+            // Show login screen
+            showLoginScreen();
+        } catch (Exception e) {
+            Logger.error("Application initialization failed: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     /**
-     * Shows the login portal screen
+     * Initialize connection to the trust authority
      */
-    public void showLoginPortal() {
+    private void connectToTrustAuthority() {
+        try {
+            trustClient = new TrustAuthorityClient(Config.TRUST_AUTHORITY_URL);
+            Logger.info("Connected to trust authority at " + Config.TRUST_AUTHORITY_URL);
+        } catch (Exception e) {
+            Logger.error("Failed to connect to trust authority: " + e.getMessage());
+            viewManager.showErrorAlert("Connection Error", 
+                "Unable to connect to trust authority: " + e.getMessage() + 
+                "\nThis may cause issues with encryption features.");
+        }
+    }
+
+    /**
+     * Shows the login screen
+     */
+    public void showLoginScreen() {
+        // Show portal view
         PortalController controller = viewManager.showView(ViewManager.VIEW_PORTAL);
         controller.setup(this, viewManager);
     }
 
     /**
-     * Sets user credentials after initial authentication
+     * Login method - initiates the authentication process
      */
-    public void setCredentials(String email, String password) {
-        this.currentEmail = email;
-        this.currentPassword = password;
+    public void login(String email, String password) {
+        try {
+            // First step: authenticate with email and password
+            currentAuth = new Authentication(email, password);
+            
+            // Initialize mail receiver
+            currentMailReceiver = new MailReceiver();
+            currentMailReceiver.connect(email, password);
+            
+            // Start 2FA process
+            startAuthProcess(email);
+        } catch (Exception e) {
+            Logger.error("Login failed: " + e.getMessage());
+            viewManager.showErrorAlert("Login Failed", "Authentication error: " + e.getMessage());
+        }
     }
 
     /**
-     * Proceeds to 2FA authentication
+     * Starts the 2FA authentication process
      */
-    public void proceedTo2FAAuthentication(String email) {
-        AuthController controller = viewManager.showView(ViewManager.VIEW_AUTH);
-        controller.setup(this, viewManager, trustClient);
-        controller.startAuthProcess(email);
+    public void startAuthProcess(String email) {
+        // Show the TOTP verification screen directly
+        showTotpVerification(email);
     }
 
     /**
-     * Called when 2FA authentication is complete
+     * Shows the TOTP verification screen
+     */
+    public void showTotpVerification(String email) {
+        TOTPVerifyController controller = viewManager.showView(ViewManager.VIEW_TOTP_VERIFY);
+        controller.setup(this, viewManager, trustClient, email);
+    }
+
+    /**
+     * Shows the registration screen
+     */
+    public void showRegistration(String email) {
+        RegisterController controller = viewManager.showView(ViewManager.VIEW_REGISTER);
+        controller.setup(this, viewManager, trustClient, email);
+    }
+
+    /**
+     * Shows the OTP verification screen
+     */
+    public void showOtpVerification(String email) {
+        OTPVerifyController controller = viewManager.showView(ViewManager.VIEW_OTP_VERIFY);
+        controller.setup(this, viewManager, trustClient, email);
+    }
+
+    /**
+     * Shows the TOTP setup screen
+     */
+    public void showTotpSetup(String email, String qrCodeUri) {
+        TOTPSetupController controller = viewManager.showView(ViewManager.VIEW_TOTP_SETUP);
+        controller.setup(this, viewManager, trustClient, email, qrCodeUri);
+    }
+
+    /**
+     * Complete authentication after successful 2FA
      */
     public void completeAuthentication(String email, String totpCode) {
-        Logger.info("Starting cryptographic key retrieval for " + email);
-
-        // Task for retrieving cryptographic keys
-        Task<Boolean> keyTask = new Task<Boolean>() {
-            @Override
-            protected Boolean call() throws Exception {
-                try {
-                    Logger.debug("Requesting private key via TrustAuthorityClient for " + email);
-
-                    // Retrieve cryptographic elements with 2FA
-                    userKeyPair = trustClient.requestPrivateKey(email, totpCode);
-
-                    if (userKeyPair == null) {
-                        Logger.error("Retrieved key pair is null");
-                        throw new Exception("Retrieved key pair is null");
-                    }
-
-                    // Initialize IBE engine with retrieved parameters
-                    ibeEngine = new IdentityBasedEncryption(trustClient.getParameters());
-
-                    // Initialize mail session
-                    auth = new Authentication(currentEmail, currentPassword);
-                    mailSession = auth.getAuthenticatedSession();
-
-                    // Initialize mail receiver
-                    mailReceiver = new MailReceiver();
-                    mailReceiver.connect(currentEmail, currentPassword);
-
-                    return true;
-                } catch (Exception e) {
-                    Logger.error("Exception retrieving keys: " + e);
-                    e.printStackTrace();
-                    throw e;
-                }
-            }
-        };
-
-        keyTask.setOnSucceeded(e -> {
-            Logger.info("Key retrieval task completed successfully");
-
-            try {
-                // Authentication complete, show inbox
-                showReceptView();
-            } catch (Exception ex) {
-                ex.printStackTrace();
-                Logger.error("Exception showing reception screen: " + ex);
-                viewManager.showErrorAlert("Error", "Error showing inbox: " + ex.getMessage());
-            }
-        });
-
-        keyTask.setOnFailed(e -> {
-            Throwable exception = keyTask.getException();
-            Logger.error("Key retrieval task failed: " + exception);
-
-            if (exception != null) {
-                exception.printStackTrace();
-                viewManager.showErrorAlert("Authentication Error",
-                        "Failed to retrieve cryptographic keys: " + exception.getMessage());
+        try {
+            // Finalize authentication with 2FA code
+            if (currentAuth != null) {
+                currentAuth.completeAuthentication(totpCode);
             } else {
-                viewManager.showErrorAlert("Authentication Error",
-                        "An unknown error occurred during key retrieval.");
+                throw new Exception("Authentication session expired");
             }
-
-            // Return to login screen
-            showLoginPortal();
-        });
-
-        // Start key retrieval thread
-        Logger.debug("Starting key retrieval thread");
-        Thread keyThread = new Thread(keyTask);
-        keyThread.setName("KeyRetrievalThread");
-        keyThread.setDaemon(true);
-        keyThread.start();
+            
+            // Get encryption keys and engine
+            userKeyPair = trustClient.requestPrivateKey(email, totpCode);
+            ibeEngine = new IdentityBasedEncryption(trustClient.getParameters());
+            
+            // Show main inbox screen
+            showReceptView();
+        } catch (Exception e) {
+            Logger.error("Error completing authentication: " + e.getMessage());
+            viewManager.showErrorAlert("Authentication Error", 
+                    "Failed to complete authentication: " + e.getMessage());
+        }
     }
 
     /**
-     * Shows the reception/inbox view
+     * Shows the inbox/reception screen
      */
     public void showReceptView() {
+        if (currentAuth == null || currentMailReceiver == null) {
+            viewManager.showErrorAlert("Not Logged In", "You need to log in first");
+            showLoginScreen();
+            return;
+        }
+        
         ReceptController controller = viewManager.showView(ViewManager.VIEW_RECEPT);
-        controller.setup(this, viewManager, currentEmail, mailReceiver);
+        controller.setup(this, viewManager, currentAuth.getEmail(), currentMailReceiver);
     }
 
     /**
-     * Shows the email composition view
+     * Shows the send email screen
      */
     public void showSendView() {
+        if (currentAuth == null) {
+            viewManager.showErrorAlert("Not Logged In", "You need to log in first");
+            showLoginScreen();
+            return;
+        }
+        
         SendController controller = viewManager.showView(ViewManager.VIEW_SEND);
-        controller.setup(this, viewManager, mailSession, userKeyPair, ibeEngine);
+        controller.setup(this, viewManager, currentAuth.getAuthenticatedSession(), userKeyPair, ibeEngine);
     }
-
+    
     /**
-     * Shows the email detail view
+     * Shows the email viewing screen
      */
-    public void showEmailView(@SuppressWarnings("exports") Message message) {
+    public void showEmailView(Message message) {
+        if (currentAuth == null) {
+            viewManager.showErrorAlert("Not Logged In", "You need to log in first");
+            showLoginScreen();
+            return;
+        }
+        
+        currentMessage = message;
         EmailController controller = viewManager.showView(ViewManager.VIEW_EMAIL);
         controller.setup(this, viewManager, message, userKeyPair, ibeEngine);
     }
-
+    
     /**
      * Logs out the current user
      */
     public void logout() {
-        // Close mail connections
-        if (mailReceiver != null) {
+        // Clean up resources
+        if (currentAuth != null) {
+            currentAuth.logout();
+            currentAuth = null;
+        }
+        
+        if (currentMailReceiver != null) {
             try {
-                mailReceiver.close();
-            } catch (MessagingException e) {
-                Logger.error("Error during logout (closing mail receiver): " + e.getMessage());
+                currentMailReceiver.close();
+            } catch (Exception e) {
+                Logger.error("Error closing mail connection: " + e.getMessage());
             }
+            currentMailReceiver = null;
         }
-
-        if (auth != null) {
-            auth.logout();
-        }
-
-        // Clear state
-        currentEmail = null;
-        currentPassword = null;
-        auth = null;
-        mailSession = null;
-        mailReceiver = null;
+        
+        // Reset state
         userKeyPair = null;
         ibeEngine = null;
-
-        // Show login portal
-        showLoginPortal();
+        currentMessage = null;
+        
+        // Show login screen
+        showLoginScreen();
     }
 
+    /**
+     * Main method
+     */
     public static void main(String[] args) {
         launch(args);
     }

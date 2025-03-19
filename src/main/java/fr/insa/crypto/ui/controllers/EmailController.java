@@ -7,6 +7,7 @@ import fr.insa.crypto.trustAuthority.KeyPair;
 import fr.insa.crypto.ui.ViewManager;
 import fr.insa.crypto.utils.Logger;
 import it.unisa.dia.gas.jpbc.Element;
+import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
@@ -19,8 +20,10 @@ import javafx.stage.DirectoryChooser;
 import javax.mail.BodyPart;
 import javax.mail.Message;
 import javax.mail.Multipart;
+import javax.mail.Part;
 import javax.mail.internet.MimeBodyPart;
 import java.io.File;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -45,11 +48,16 @@ public class EmailController {
     private ProgressIndicator downloadProgress;
     @FXML
     private StackPane loadingOverlay;
+    @FXML
+    private Text dateText;
 
     private ViewManager viewManager;
 
     // Current message being displayed
     private Message currentMessage;
+
+    // Date formatter
+    private final SimpleDateFormat fullDateFormatter = new SimpleDateFormat("dd MMM yyyy HH:mm");
 
     /**
      * Initializes the controller after FXML is loaded
@@ -90,62 +98,119 @@ public class EmailController {
             messageArea.setText("No message selected");
             attachmentStatus.setText("No attachments");
             attachmentButton.setDisable(true);
+            dateText.setText("");
             return;
         }
 
         try {
-            // Display sender and subject
-            fromArea.setText(currentMessage.getFrom()[0].toString());
-            subjectArea.setText(currentMessage.getSubject() != null ? currentMessage.getSubject() : "(No subject)");
+            // Afficher l'état de chargement
+            loadingOverlay.setVisible(true);
+            
+            // Tâche asynchrone pour charger le contenu de l'email
+            Task<Void> loadContentTask = new Task<Void>() {
+                @Override
+                protected Void call() throws Exception {
+                    try {
+                        // On utilise Platform.runLater pour mettre à jour l'interface
+                        Platform.runLater(() -> {
+                            try {
+                                // Afficher expéditeur et sujet
+                                fromArea.setText(currentMessage.getFrom()[0].toString());
+                                subjectArea.setText(currentMessage.getSubject() != null ? currentMessage.getSubject() : "(Sans objet)");
+                                
+                                // Afficher la date formatée
+                                if (currentMessage.getReceivedDate() != null) {
+                                    dateText.setText(fullDateFormatter.format(currentMessage.getReceivedDate()));
+                                } else {
+                                    dateText.setText("");
+                                }
+                            } catch (Exception e) {
+                                Logger.error("Erreur lors de l'affichage des métadonnées: " + e.getMessage());
+                            }
+                        });
 
-            // Get message content
-            Object content = currentMessage.getContent();
-            String messageContent = "";
-            boolean hasAttachment = false;
-            List<MimeBodyPart> attachmentParts = new ArrayList<>();
+                        // Récupérer le contenu du message
+                        Object content = currentMessage.getContent();
+                        final String messageContent;
+                        final boolean hasAttachment;
+                        final List<MimeBodyPart> attachmentParts = new ArrayList<>();
 
-            if (content instanceof String) {
-                messageContent = (String) content;
-            } else if (content instanceof Multipart) {
-                Multipart multipart = (Multipart) content;
-                for (int i = 0; i < multipart.getCount(); i++) {
-                    BodyPart bodyPart = multipart.getBodyPart(i);
-                    if (bodyPart.getDisposition() == null) {
-                        // This is likely the message content
-                        Object partContent = bodyPart.getContent();
-                        if (partContent instanceof String) {
-                            messageContent = (String) partContent;
+                        if (content instanceof String) {
+                            messageContent = (String) content;
+                            hasAttachment = false;
+                        } else if (content instanceof Multipart) {
+                            StringBuilder textContent = new StringBuilder();
+                            Multipart multipart = (Multipart) content;
+                            boolean foundAttachments = false;
+                            
+                            for (int i = 0; i < multipart.getCount(); i++) {
+                                BodyPart bodyPart = multipart.getBodyPart(i);
+                                if (bodyPart.getDisposition() == null || 
+                                        bodyPart.getDisposition().equalsIgnoreCase(Part.INLINE)) {
+                                    // Contenu du message
+                                    Object partContent = bodyPart.getContent();
+                                    if (partContent instanceof String) {
+                                        textContent.append(partContent).append("\n");
+                                    }
+                                } else {
+                                    // Pièce jointe
+                                    foundAttachments = true;
+                                    if (bodyPart instanceof MimeBodyPart) {
+                                        attachmentParts.add((MimeBodyPart) bodyPart);
+                                    }
+                                }
+                            }
+                            
+                            messageContent = textContent.toString();
+                            hasAttachment = foundAttachments;
+                        } else {
+                            messageContent = "Contenu non pris en charge: " + content.getClass().getName();
+                            hasAttachment = false;
                         }
-                    } else {
-                        // This is an attachment
-                        hasAttachment = true;
-                        if (bodyPart instanceof MimeBodyPart) {
-                            attachmentParts.add((MimeBodyPart) bodyPart);
-                        }
+
+                        // Mise à jour de l'interface
+                        Platform.runLater(() -> {
+                            // Afficher le contenu
+                            messageArea.setText(messageContent);
+                            
+                            // Gérer les pièces jointes
+                            if (hasAttachment) {
+                                attachmentStatus.setText("Ce message contient " + 
+                                        attachmentParts.size() + " pièce(s) jointe(s)");
+                                attachmentButton.setDisable(false);
+                                
+                                // Configurer le bouton de téléchargement
+                                setupAttachmentButton(attachmentParts, userKeyPair, ibeEngine);
+                            } else {
+                                attachmentStatus.setText("Pas de pièce jointe dans ce message");
+                                attachmentButton.setDisable(true);
+                            }
+                            
+                            // Masquer l'overlay de chargement
+                            loadingOverlay.setVisible(false);
+                        });
+                    } catch (Exception e) {
+                        // Gérer l'erreur
+                        Platform.runLater(() -> {
+                            Logger.error("Erreur lors de l'affichage du message: " + e.getMessage());
+                            messageArea.setText("Erreur lors de l'affichage du message: " + e.getMessage());
+                            loadingOverlay.setVisible(false);
+                        });
                     }
+                    
+                    return null;
                 }
-            }
-
-            // Display message content
-            messageArea.setText(messageContent);
-
-            // Handle attachments
-            if (hasAttachment) {
-                attachmentStatus.setText("This message contains attachments (encrypted)");
-                attachmentButton.setDisable(false);
-                attachmentButton.setText("Download & Decrypt");
-
-                // Set up attachment button action
-                setupAttachmentButton(attachmentParts, userKeyPair, ibeEngine);
-            } else {
-                attachmentStatus.setText("No attachments in this message");
-                attachmentButton.setDisable(true);
-            }
-
+            };
+            
+            // Démarrer la tâche de chargement
+            new Thread(loadContentTask).start();
+            
         } catch (Exception e) {
-            Logger.error("Error displaying message: " + e.getMessage());
-            messageArea.setText("Error displaying message: " + e.getMessage());
-            viewManager.showErrorAlert("Display Error", "Error displaying message: " + e.getMessage());
+            loadingOverlay.setVisible(false);
+            Logger.error("Erreur lors de l'affichage du message: " + e.getMessage());
+            messageArea.setText("Erreur lors de l'affichage du message: " + e.getMessage());
+            viewManager.showErrorAlert("Erreur d'affichage", 
+                    "Erreur lors de l'affichage du message: " + e.getMessage());
         }
     }
 

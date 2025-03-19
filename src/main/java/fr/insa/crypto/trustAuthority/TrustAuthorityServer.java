@@ -370,28 +370,57 @@ public class TrustAuthorityServer {
                 String requestBody = new BufferedReader(
                         new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8))
                         .lines().collect(Collectors.joining("\n"));
+                    
+                Logger.debug("Corps de la requête TOTP reçu: " + requestBody);
 
                 // Analyser les données JSON
                 JSONObject jsonRequest = new JSONObject(requestBody);
+                
+                // Vérifier que les clés requises existent
+                if (!jsonRequest.has("email")) {
+                    Logger.error("Clé 'email' non trouvée dans la requête JSON TOTP");
+                    sendResponse(exchange, 400, "{\"authenticated\":false, \"error\":\"Missing email parameter\"}");
+                    return;
+                }
+                
+                // Obtenir les paramètres avec des valeurs par défaut pour éviter les exceptions
                 String email = jsonRequest.getString("email");
-                String totpCode = jsonRequest.getString("totpCode");
+                // Accepter à la fois "totp" et "totpCode" pour plus de flexibilité
+                String totpCode;
+                if (jsonRequest.has("totp")) {
+                    totpCode = jsonRequest.getString("totp");
+                } else if (jsonRequest.has("totpCode")) {
+                    totpCode = jsonRequest.getString("totpCode");
+                } else {
+                    Logger.error("Code TOTP non trouvé dans la requête JSON");
+                    sendResponse(exchange, 400, "{\"authenticated\":false, \"error\":\"Missing TOTP code\"}");
+                    return;
+                }
 
-                // Vérifier l'authentification
-                boolean isAuthenticated = isUserAuthenticated(email, totpCode);
+                // Récupérer le compte utilisateur
+                UserAccount account = userManager.getUser(email);
+                if (account == null || !account.isVerified()) {
+                    Logger.warning("Tentative de vérification TOTP pour un compte inexistant ou non vérifié: " + email);
+                    sendResponse(exchange, 401, "{\"authenticated\":false, \"error\":\"Invalid account\"}");
+                    return;
+                }
+
+                // Vérifier le code TOTP
+                boolean isValid = totpManager.verifyCode(totpCode, account.getTotpSecret());
 
                 // Préparer la réponse JSON
                 JSONObject jsonResponse = new JSONObject();
-                jsonResponse.put("authenticated", isAuthenticated);
-
-                if (isAuthenticated) {
-                    sendResponse(exchange, 200, jsonResponse.toString());
+                jsonResponse.put("authenticated", isValid);
+                if (isValid) {
+                    Logger.info("Vérification TOTP réussie pour " + email);
                 } else {
-                    sendResponse(exchange, 401, jsonResponse.toString());
+                    Logger.warning("Échec de la vérification TOTP pour " + email);
                 }
-
+                
+                sendResponse(exchange, 200, jsonResponse.toString());
             } catch (Exception e) {
                 Logger.error("Erreur lors de la vérification TOTP: " + e.getMessage());
-                sendResponse(exchange, 500, "Internal Server Error: " + e.getMessage());
+                sendResponse(exchange, 500, "{\"authenticated\":false, \"error\":\"" + e.getMessage() + "\"}");
             }
         }
     }

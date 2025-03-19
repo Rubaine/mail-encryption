@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.*?>
+<?import javafx.geometry.*?>
+<?import javafx.scene.shape.*?>
+
+<AnchorPane styleClass="login-background" stylesheets="@styles.css"
+          xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1"
+          fx:controller="fr.insa.crypto.ui.controllers.RegisterController">
+          
+    <!-- Background gradient -->
+    <Rectangle styleClass="login-gradient" AnchorPane.topAnchor="0.0" AnchorPane.bottomAnchor="0.0"
+               AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" />
+    
+    <!-- Container centré -->
+    <StackPane AnchorPane.topAnchor="0.0" AnchorPane.bottomAnchor="0.0"
+               AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0">
+        <VBox alignment="CENTER" spacing="0" maxWidth="450.0">
+            <!-- Logo -->
+            <StackPane styleClass="logo-container">
+                <Circle radius="40.0" fill="#1a73e8" />
+                <Text text="MS" fill="WHITE" styleClass="logo-text">
+                    <font>
+                        <Font name="System Bold" size="32.0" />
+                    </font>
+                </Text>
+            </StackPane>
+            
+            <!-- Panel d'enregistrement -->
+            <VBox alignment="CENTER" styleClass="login-panel" spacing="20.0">
+                <Text styleClass="app-title" text="Création de compte" fill="#202124">
+                    <font>
+                        <Font name="System Bold" size="22.0" />
+                    </font>
+                </Text>
+                <Text text="Nous allons envoyer un code de vérification à votre adresse email" styleClass="app-subtitle" />
+                
+                <VBox spacing="15.0" alignment="CENTER">
+                    <VBox spacing="10.0">
+                        <Label text="Email" styleClass="field-label" />
+                        <TextField fx:id="emailField" promptText="votre@email.com" styleClass="text-field" maxWidth="Infinity" />
+                    </VBox>
+                    
+                    <Button fx:id="sendOtpButton" styleClass="button-primary" text="ENVOYER LE CODE" maxWidth="Infinity">
+                        <VBox.margin>
+                            <Insets top="10.0" />
+                        </VBox.margin>
+                    </Button>
+                    
+                    <Button fx:id="backToLoginButton" styleClass="button-secondary" text="Retour à l'authentification" maxWidth="Infinity">
+                        <VBox.margin>
+                            <Insets top="5.0" />
+                        </VBox.margin>
+                    </Button>
+                </VBox>
+            </VBox>
+        </VBox>
+    </StackPane>
+    
+    <!-- Overlay de chargement -->
+    <StackPane fx:id="loadingOverlay" styleClass="spinner-overlay" visible="false"
+               AnchorPane.topAnchor="0.0" AnchorPane.bottomAnchor="0.0"
+               AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0">
+        <VBox alignment="CENTER" spacing="15">
+            <ProgressIndicator progress="-1" />
+            <Label fx:id="loadingText" text="Envoi du code en cours..." styleClass="loading-text" />
+        </VBox>
+    </StackPane>
+</AnchorPane>

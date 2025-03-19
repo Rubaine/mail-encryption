@@ -1,100 +1,116 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
+<?import javafx.geometry.*?>
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 <?import javafx.scene.text.*?>
-<?import javafx.geometry.*?>
 
-<BorderPane prefHeight="700.0" prefWidth="1000.0" stylesheets="@styles.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" fx:controller="fr.insa.crypto.ui.controllers.EmailController">
+<BorderPane stylesheets="@styles.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" 
+          fx:controller="fr.insa.crypto.ui.controllers.EmailController" prefHeight="1080" prefWidth="1920.0">
     <!-- En-tête -->
     <top>
-        <HBox alignment="CENTER_LEFT" styleClass="header" spacing="10" BorderPane.alignment="CENTER">
-            <children>
-                <Button fx:id="quitButton" styleClass="button-secondary" text="Retour" />
-                <Label text="Lecture du message">
-                    <font>
-                        <Font name="System Bold" size="16.0" />
-                    </font>
-                </Label>
-            </children>
+        <HBox alignment="CENTER_LEFT" spacing="10" styleClass="header">
             <padding>
                 <Insets bottom="10.0" left="20.0" right="20.0" top="10.0" />
             </padding>
+            <Button fx:id="quitButton" styleClass="button-secondary" text="Retour">
+                <graphic>
+                    <Text text="←" />
+                </graphic>
+            </Button>
+            <Text fill="#1a73e8" styleClass="app-title" text="Lecture du message">
+                <font>
+                    <Font name="System Bold" size="18.0" />
+                </font>
+            </Text>
         </HBox>
     </top>
     
     <!-- Contenu principal -->
     <center>
         <StackPane>
-            <children>
-                <ScrollPane fitToWidth="true" BorderPane.alignment="CENTER">
-                    <content>
-                        <VBox spacing="10.0">
+            <ScrollPane fitToWidth="true" styleClass="email-view-container">
+                <content>
+                    <VBox fillWidth="true">
+                        <!-- En-tête du message -->
+                        <VBox styleClass="email-header" spacing="15.0">
+                            <padding>
+                                <Insets bottom="15.0" left="20.0" right="20.0" top="20.0" />
+                            </padding>
+                            
+                            <!-- Sujet -->
+                            <TextArea fx:id="subjectArea" editable="false" styleClass="email-subject-text" wrapText="true">
+                                <font>
+                                    <Font name="System Bold" size="20.0" />
+                                </font>
+                            </TextArea>
+                            
+                            <!-- Informations expéditeur et dates -->
+                            <HBox spacing="10.0" alignment="CENTER_LEFT">
+                                <VBox spacing="5.0" HBox.hgrow="ALWAYS">
+                                    <HBox alignment="CENTER_LEFT" spacing="5.0">
+                                        <Text styleClass="email-metadata-label" text="De :">
+                                            <font>
+                                                <Font name="System Bold" size="13.0" />
+                                            </font>
+                                        </Text>
+                                        <TextArea fx:id="fromArea" editable="false" styleClass="email-from-text" wrapText="true" HBox.hgrow="ALWAYS" />
+                                    </HBox>
+                                    
+                                    <HBox alignment="CENTER_LEFT" spacing="5.0">
+                                        <Text styleClass="email-metadata-label" text="À :">
+                                            <font>
+                                                <Font name="System Bold" size="13.0" />
+                                            </font>
+                                        </Text>
+                                        <Text styleClass="email-metadata-value" text="moi" />
+                                    </HBox>
+                                </VBox>
+                                
+                                <VBox alignment="TOP_RIGHT">
+                                    <Text fx:id="dateText" styleClass="email-date" text="" />
+                                </VBox>
+                            </HBox>
+                        </VBox>
+                        
+                        <!-- Séparateur -->
+                        <Separator />
+                        
+                        <!-- Corps du message -->
+                        <VBox styleClass="email-body" VBox.vgrow="ALWAYS">
                             <padding>
                                 <Insets bottom="20.0" left="20.0" right="20.0" top="20.0" />
                             </padding>
-                            <children>
-                                <!-- En-tête du message -->
-                                <VBox styleClass="email-header" spacing="5.0">
-                                    <children>
-                                        <!-- Sujet - Modification pour rendre le TextArea plus facile à trouver -->
-                                        <HBox alignment="CENTER_LEFT">
-                                            <children>
-                                                <Text styleClass="email-subject" text="Sujet : ">
-                                                    <font>
-                                                        <Font name="System Bold" size="18.0" />
-                                                    </font>
-                                                </Text>
-                                                <TextArea fx:id="subjectArea" editable="false" styleClass="email-subject-text" wrapText="true" HBox.hgrow="ALWAYS" />
-                                            </children>
-                                        </HBox>
-                                        
-                                        <!-- Expéditeur - Modification pour rendre le TextArea plus facile à trouver -->
-                                        <HBox alignment="CENTER_LEFT">
-                                            <children>
-                                                <Text text="De : ">
-                                                    <font>
-                                                        <Font name="System Bold" size="14.0" />
-                                                    </font>
-                                                </Text>
-                                                <TextArea fx:id="fromArea" editable="false" styleClass="email-from-text" wrapText="true" HBox.hgrow="ALWAYS" />
-                                            </children>
-                                        </HBox>
-                                    </children>
-                                </VBox>
-                                
-                                <!-- Séparateur -->
-                                <Separator />
-                                
-                                <!-- Corps du message -->
-                                <TextArea fx:id="messageArea" editable="false" prefHeight="350.0" wrapText="true" VBox.vgrow="ALWAYS" />
-                                
-                                <!-- Pièces jointes -->
-                                <HBox alignment="CENTER_LEFT" spacing="10.0">
-                                    <children>
-                                        <Button fx:id="attachmentButton" styleClass="button-secondary" text="Télécharger les pièces jointes" />
-                                        <ProgressIndicator fx:id="downloadProgress" progress="-1" visible="false" prefHeight="20.0" prefWidth="20.0" />
-                                        <Text fx:id="attachmentStatus" text="Pas de pièce jointe dans ce message" />
-                                    </children>
-                                    <padding>
-                                        <Insets top="10.0" />
-                                    </padding>
-                                </HBox>
-                            </children>
+                            <TextArea fx:id="messageArea" editable="false" styleClass="email-content" wrapText="true" minHeight="300.0" VBox.vgrow="ALWAYS" />
                         </VBox>
-                    </content>
-                </ScrollPane>
-                
-                <!-- Overlay de chargement global -->
-                <StackPane fx:id="loadingOverlay" styleClass="spinner-overlay" visible="false">
-                    <children>
-                        <VBox alignment="CENTER" spacing="15">
-                            <ProgressIndicator progress="-1" />
-                            <Label text="Chargement en cours..." />
+                        
+                        <!-- Pièces jointes -->
+                        <VBox styleClass="email-attachments">
+                            <padding>
+                                <Insets bottom="15.0" left="20.0" right="20.0" top="15.0" />
+                            </padding>
+                            
+                            <HBox alignment="CENTER_LEFT" spacing="10.0">
+                                <Button fx:id="attachmentButton" styleClass="button-secondary" text="Télécharger les pièces jointes">
+                                    <graphic>
+                                        <Text text="📎" />
+                                    </graphic>
+                                </Button>
+                                <ProgressIndicator fx:id="downloadProgress" prefHeight="20.0" prefWidth="20.0" progress="-1" visible="false" />
+                                <Text fx:id="attachmentStatus" text="Pas de pièce jointe dans ce message" />
+                            </HBox>
                         </VBox>
-                    </children>
-                </StackPane>
-            </children>
+                    </VBox>
+                </content>
+            </ScrollPane>
+            
+            <!-- Overlay de chargement global -->
+            <StackPane fx:id="loadingOverlay" styleClass="spinner-overlay" visible="false">
+                <VBox alignment="CENTER" spacing="15">
+                    <ProgressIndicator progress="-1" />
+                    <Label text="Chargement en cours..." />
+                </VBox>
+            </StackPane>
         </StackPane>
     </center>
 </BorderPane>

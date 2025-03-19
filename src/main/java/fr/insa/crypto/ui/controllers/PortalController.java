@@ -85,7 +85,7 @@ public class PortalController {
                     mailReceiver.connect(email, password);
 
                     // Success, store credentials in main app
-                    mainApp.setCredentials(email, password);
+                    // mainApp.setCredentials(email, password);
 
                     return true;
                 } catch (Exception e) {
@@ -104,7 +104,7 @@ public class PortalController {
             if (loginTask.getValue()) {
                 // SMTP/IMAP authentication successful
                 // Continue with 2FA via Google Authenticator
-                mainApp.proceedTo2FAAuthentication(email);
+                mainApp.showTotpVerification(email);
             } else {
                 // Login failed
                 viewManager.showErrorAlert("Authentication Failed",

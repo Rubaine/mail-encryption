@@ -11,6 +11,7 @@ module fr.insa.crypto {
     requires activation;
     requires owasp.encoder;
     requires totp;
+    requires jdk.httpserver;
 
     // Export packages to JavaFX FXML
     exports fr.insa.crypto to javafx.graphics;
