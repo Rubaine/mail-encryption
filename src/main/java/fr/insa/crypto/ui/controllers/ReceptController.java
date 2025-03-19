@@ -99,6 +99,12 @@ public class ReceptController {
     private final SimpleDateFormat dateFormatter = new SimpleDateFormat("dd MMM");
     private final SimpleDateFormat fullDateFormatter = new SimpleDateFormat("dd MMM yyyy HH:mm");
     private final Date today = new Date();
+    
+    // Système de cache pour les emails
+    private static boolean isEmailListCached = false;
+    private static List<EmailItem> cachedEmailItems = new ArrayList<>();
+    private static long lastRefreshTime = 0;
+    private static final long CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
 
     /**
      * Initializes the controller after FXML is loaded
@@ -123,10 +129,10 @@ public class ReceptController {
         // Set up button actions
         newMessageButton.setOnAction(event -> mainApp.showSendView());
         logoutButton.setOnAction(event -> handleLogout(mailReceiver));
-        refreshButton.setOnAction(event -> refreshMessages(mailReceiver));
+        refreshButton.setOnAction(event -> forceRefreshMessages(mailReceiver));
         
         if (emptyRefreshButton != null) {
-            emptyRefreshButton.setOnAction(event -> refreshMessages(mailReceiver));
+            emptyRefreshButton.setOnAction(event -> forceRefreshMessages(mailReceiver));
         }
         
         // Set up search functionality
@@ -142,7 +148,51 @@ public class ReceptController {
         // Set up email list selection handler
         setupEmailListSelection();
 
-        // Initial refresh
+        // Show loading overlay
+        loadingOverlay.setVisible(true);
+
+        // Load emails (from cache if available, otherwise refresh)
+        loadEmailsWithCache(mailReceiver);
+    }
+
+    /**
+     * Loads emails using cache when possible
+     */
+    private void loadEmailsWithCache(MailReceiver mailReceiver) {
+        long currentTime = System.currentTimeMillis();
+        
+        if (isEmailListCached && !cachedEmailItems.isEmpty() && 
+            (currentTime - lastRefreshTime) < CACHE_DURATION_MS) {
+            // Use cached data
+            Logger.info("Utilisation des emails en cache (" + cachedEmailItems.size() + " messages)");
+            allEmailItems = new ArrayList<>(cachedEmailItems);
+            filteredEmailItems = new ArrayList<>(cachedEmailItems);
+            
+            Platform.runLater(() -> {
+                updateEmailListView();
+                loadingOverlay.setVisible(false);
+            });
+        } else {
+            // Cache expired or empty, refresh from server
+            refreshMessages(mailReceiver);
+        }
+    }
+    
+    /**
+     * Forces a refresh of messages, ignoring the cache
+     */
+    private void forceRefreshMessages(MailReceiver mailReceiver) {
+        refreshButton.setDisable(true);
+        refreshProgress.setVisible(true);
+        loadingOverlay.setVisible(true);
+        
+        // Reset the search
+        searchField.setText("");
+        currentSearchTerm = "";
+        
+        // Reset pagination
+        currentPage = 1;
+        
         refreshMessages(mailReceiver);
     }
 
@@ -306,16 +356,11 @@ public class ReceptController {
      * Refreshes the message list
      */
     private void refreshMessages(MailReceiver mailReceiver) {
-        // Show loading indicators
-        refreshButton.setDisable(true);
-        refreshProgress.setVisible(true);
-        
-        // Reset the search
-        searchField.setText("");
-        currentSearchTerm = "";
-        
-        // Reset pagination
-        currentPage = 1;
+        // Show loading indicators if not already visible
+        if (!refreshProgress.isVisible()) {
+            refreshButton.setDisable(true);
+            refreshProgress.setVisible(true);
+        }
 
         Task<Message[]> refreshTask = new Task<Message[]>() {
             @Override
@@ -333,11 +378,13 @@ public class ReceptController {
         refreshTask.setOnSucceeded(e -> {
             messages = refreshTask.getValue();
             processMessages(messages);
+            lastRefreshTime = System.currentTimeMillis();
         });
 
         refreshTask.setOnFailed(e -> {
             refreshButton.setDisable(false);
             refreshProgress.setVisible(false);
+            loadingOverlay.setVisible(false);
             viewManager.showErrorAlert("Refresh Error",
                     "Error retrieving messages: " + refreshTask.getException().getMessage());
         });
@@ -379,18 +426,24 @@ public class ReceptController {
             allEmailItems = processTask.getValue();
             filteredEmailItems = new ArrayList<>(allEmailItems);
             
+            // Update cache
+            cachedEmailItems = new ArrayList<>(allEmailItems);
+            isEmailListCached = true;
+            
             // Update UI
             updateEmailListView();
             refreshButton.setDisable(false);
             refreshProgress.setVisible(false);
+            loadingOverlay.setVisible(false);
             
-            Logger.info("Messages refreshed: " + (messages != null ? messages.length : 0) + " messages found");
+            Logger.info("Messages refreshed: " + (messages != null ? messages.length : 0) + " messages found and cached");
         });
         
         processTask.setOnFailed(e -> {
             Logger.error("Error processing messages: " + processTask.getException().getMessage());
             refreshButton.setDisable(false);
             refreshProgress.setVisible(false);
+            loadingOverlay.setVisible(false);
         });
         
         executorService.submit(processTask);
@@ -403,7 +456,22 @@ public class ReceptController {
         String subject = message.getSubject() != null ? message.getSubject() : "(Sans objet)";
         String sender = message.getFrom()[0].toString();
         boolean isUnread = !message.isSet(Flags.Flag.SEEN);
-        Date date = message.getReceivedDate() != null ? message.getReceivedDate() : new Date();
+        
+        // Amélioration de la récupération de la date du message
+        Date date;
+        if (message.getReceivedDate() != null) {
+            // Date de réception prioritaire
+            date = message.getReceivedDate();
+            Logger.debug("Utilisation de la date de réception pour " + message.getSubject());
+        } else if (message.getSentDate() != null) {
+            // Si pas de date de réception, utiliser la date d'envoi
+            date = message.getSentDate();
+            Logger.debug("Utilisation de la date d'envoi pour " + message.getSubject() + " car pas de date de réception");
+        } else {
+            // En dernier recours, utiliser la date actuelle
+            date = new Date();
+            Logger.debug("Utilisation de la date actuelle pour " + message.getSubject() + " car aucune date disponible");
+        }
         
         // Extract sender name for better readability
         if (sender.contains("<")) {
@@ -502,6 +570,10 @@ public class ReceptController {
      */
     private void handleLogout(MailReceiver mailReceiver) {
         try {
+            // Clear cache
+            isEmailListCached = false;
+            cachedEmailItems.clear();
+            
             // Shutdown the executor service
             executorService.shutdownNow();
             

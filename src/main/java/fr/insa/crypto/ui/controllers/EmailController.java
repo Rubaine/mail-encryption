@@ -25,6 +25,7 @@ import javax.mail.internet.MimeBodyPart;
 import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -37,9 +38,9 @@ public class EmailController {
     @FXML
     private TextArea messageArea;
     @FXML
-    private TextArea fromArea;
-    @FXML
     private TextArea subjectArea;
+    @FXML
+    private Text fromText;
     @FXML
     private Text attachmentStatus;
     @FXML
@@ -52,6 +53,7 @@ public class EmailController {
     private Text dateText;
 
     private ViewManager viewManager;
+    private MainUI mainApp;
 
     // Current message being displayed
     private Message currentMessage;
@@ -74,15 +76,11 @@ public class EmailController {
             KeyPair userKeyPair,
             IdentityBasedEncryption ibeEngine) {
         this.viewManager = viewManager;
+        this.mainApp = mainApp;
         this.currentMessage = message;
 
-        // Set up the quit button action
+        // Set up the quit button action to return to inbox
         quitButton.setOnAction(event -> mainApp.showReceptView());
-
-        // Make text areas non-editable
-        messageArea.setEditable(false);
-        fromArea.setEditable(false);
-        subjectArea.setEditable(false);
 
         // Display message content
         displayMessageContent(userKeyPair, ibeEngine);
@@ -93,7 +91,7 @@ public class EmailController {
      */
     private void displayMessageContent(KeyPair userKeyPair, IdentityBasedEncryption ibeEngine) {
         if (currentMessage == null) {
-            fromArea.setText("No sender");
+            fromText.setText("No sender");
             subjectArea.setText("No subject");
             messageArea.setText("No message selected");
             attachmentStatus.setText("No attachments");
@@ -115,14 +113,28 @@ public class EmailController {
                         Platform.runLater(() -> {
                             try {
                                 // Afficher expéditeur et sujet
-                                fromArea.setText(currentMessage.getFrom()[0].toString());
+                                fromText.setText(currentMessage.getFrom()[0].toString());
                                 subjectArea.setText(currentMessage.getSubject() != null ? currentMessage.getSubject() : "(Sans objet)");
                                 
-                                // Afficher la date formatée
+                                // Amélioration de l'affichage de la date
+                                Date messageDate = null;
+                                
+                                // Essayer d'obtenir la date de réception en priorité
                                 if (currentMessage.getReceivedDate() != null) {
-                                    dateText.setText(fullDateFormatter.format(currentMessage.getReceivedDate()));
+                                    messageDate = currentMessage.getReceivedDate();
+                                    Logger.debug("Utilisation de la date de réception de l'email");
+                                } 
+                                // Si pas de date de réception, utiliser la date d'envoi
+                                else if (currentMessage.getSentDate() != null) {
+                                    messageDate = currentMessage.getSentDate();
+                                    Logger.debug("Utilisation de la date d'envoi de l'email car pas de date de réception");
+                                }
+                                
+                                if (messageDate != null) {
+                                    dateText.setText(fullDateFormatter.format(messageDate));
                                 } else {
-                                    dateText.setText("");
+                                    dateText.setText("Date inconnue");
+                                    Logger.warning("Aucune date disponible pour ce message");
                                 }
                             } catch (Exception e) {
                                 Logger.error("Erreur lors de l'affichage des métadonnées: " + e.getMessage());
@@ -169,12 +181,14 @@ public class EmailController {
                         }
 
                         // Mise à jour de l'interface
+                        String finalMessageContent = messageContent;
+                        boolean finalHasAttachment = hasAttachment;
                         Platform.runLater(() -> {
                             // Afficher le contenu
-                            messageArea.setText(messageContent);
+                            messageArea.setText(finalMessageContent);
                             
                             // Gérer les pièces jointes
-                            if (hasAttachment) {
+                            if (finalHasAttachment) {
                                 attachmentStatus.setText("Ce message contient " + 
                                         attachmentParts.size() + " pièce(s) jointe(s)");
                                 attachmentButton.setDisable(false);
