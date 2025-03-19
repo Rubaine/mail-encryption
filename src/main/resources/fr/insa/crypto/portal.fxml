@@ -2,12 +2,103 @@
 
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
+<?import javafx.scene.text.*?>
+<?import javafx.geometry.*?>
+<?import javafx.scene.shape.*?>
+<?import javafx.scene.image.*?>
 
-<VBox prefHeight="400.0" prefWidth="640.0" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
-    <AnchorPane maxHeight="1.0" maxWidth="1.0" prefHeight="1.0" prefWidth="1.0" VBox.vgrow="ALWAYS">
-        <Accordion layoutX="330.0" layoutY="185.0"/>
-        <TextField fx:id="emailField" layoutX="119.0" layoutY="102.0" prefHeight="39.0" prefWidth="402.0" text="adresse e-mail"/>
-        <TextField fx:id="passwordField" layoutX="119.0" layoutY="172.0" prefHeight="39.0" prefWidth="402.0" text="mot de passe"/>
-        <Button fx:id="loginButton" layoutX="367.0" layoutY="283.0" mnemonicParsing="false" prefHeight="39.0" prefWidth="154.0" text="Se connecter"/>
-    </AnchorPane>
-</VBox>
+<StackPane xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" 
+         styleClass="login-background" stylesheets="@styles.css">
+    <children>
+        <!-- Background gradient -->
+        <Rectangle width="800.0" height="600.0" styleClass="login-gradient" />
+        
+        <!-- Login container -->
+        <VBox alignment="CENTER" maxWidth="500.0" spacing="0">
+            <!-- App Logo/Icon -->
+            <StackPane styleClass="logo-container">
+                <Circle radius="40.0" fill="#4285F4" />
+                <Text text="MS" fill="WHITE" styleClass="logo-text">
+                    <font>
+                        <Font name="System Bold" size="32.0" />
+                    </font>
+                </Text>
+            </StackPane>
+            
+            <VBox alignment="CENTER" styleClass="login-panel" spacing="20.0">
+                <!-- Header -->
+                <VBox alignment="CENTER" spacing="5.0">
+                    <Text styleClass="app-title" text="Messenger Secure" fill="#4285F4">
+                        <font>
+                            <Font name="System Bold" size="32.0" />
+                        </font>
+                    </Text>
+                    <Text text="Sécurisez vos communications" fill="#757575" styleClass="app-subtitle">
+                        <font>
+                            <Font size="14.0" />
+                        </font>
+                    </Text>
+                </VBox>
+                
+                <Separator styleClass="form-separator" />
+                
+                <!-- Login form -->
+                <VBox spacing="15.0">
+                    <VBox spacing="8.0">
+                        <Label text="Adresse email" styleClass="field-label" />
+                        <HBox spacing="10.0" styleClass="input-container">
+                            <StackPane styleClass="input-icon-container">
+                                <Rectangle width="20.0" height="20.0" fill="transparent" />
+                                <Text text="✉" styleClass="input-icon" />
+                            </StackPane>
+                            <TextField fx:id="emailField" promptText="votre@email.com" styleClass="text-field" HBox.hgrow="ALWAYS" />
+                        </HBox>
+                    </VBox>
+                    
+                    <VBox spacing="8.0">
+                        <Label text="Mot de passe ou clé d'application" styleClass="field-label" />
+                        <HBox spacing="10.0" styleClass="input-container">
+                            <StackPane styleClass="input-icon-container">
+                                <Rectangle width="20.0" height="20.0" fill="transparent" />
+                                <Text text="🔒" styleClass="input-icon" />
+                            </StackPane>
+                            <PasswordField fx:id="passwordField" promptText="Votre mot de passe" styleClass="text-field" HBox.hgrow="ALWAYS" />
+                        </HBox>
+                    </VBox>
+                    
+                    <VBox alignment="CENTER" spacing="15.0">
+                        <Button fx:id="loginButton" styleClass="button-primary" text="SE CONNECTER" maxWidth="Infinity">
+                            <VBox.margin>
+                                <Insets top="15.0" />
+                            </VBox.margin>
+                        </Button>
+                        
+                        <HBox alignment="CENTER" spacing="10" visible="false" fx:id="progressContainer">
+                            <ProgressIndicator fx:id="loginProgress" progress="-1" styleClass="login-progress" />
+                            <Label text="Connexion en cours..." styleClass="progress-text" />
+                        </HBox>
+                    </VBox>
+                </VBox>
+                
+                <!-- Footer -->
+                <VBox alignment="CENTER" spacing="5.0">
+                    <Text text="Application sécurisée par cryptographie" styleClass="security-info">
+                        <VBox.margin>
+                            <Insets top="10.0" />
+                        </VBox.margin>
+                    </Text>
+                </VBox>
+            </VBox>
+        </VBox>
+        
+        <!-- Overlay de chargement global -->
+        <StackPane fx:id="loadingOverlay" styleClass="spinner-overlay" visible="false">
+            <children>
+                <VBox alignment="CENTER" spacing="15">
+                    <ProgressIndicator progress="-1" />
+                    <Label text="Connexion en cours..." styleClass="loading-text" />
+                </VBox>
+            </children>
+        </StackPane>
+    </children>
+</StackPane>

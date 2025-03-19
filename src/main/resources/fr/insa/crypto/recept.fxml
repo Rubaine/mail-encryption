@@ -1,28 +1,99 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<?import java.lang.*?>
-<?import java.util.*?>
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
-<?import javafx.scene.paint.*?>
 <?import javafx.scene.text.*?>
+<?import javafx.geometry.*?>
 
-<VBox prefHeight="400.0" prefWidth="640.0" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
-    <children>
-        <AnchorPane maxHeight="-1.0" maxWidth="-1.0" minHeight="-Infinity" minWidth="-Infinity" prefHeight="700.0" prefWidth="1024.0" VBox.vgrow="ALWAYS">
+<BorderPane prefHeight="700.0" prefWidth="1000.0" stylesheets="@styles.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+    <!-- En-tête -->
+    <top>
+        <HBox alignment="CENTER_LEFT" styleClass="header" spacing="10" BorderPane.alignment="CENTER">
             <children>
-                <Button fx:id="refreshButton" layoutX="791.0" layoutY="39.0" mnemonicParsing="false" prefHeight="47.0" prefWidth="164.0" text="Actualiser" />
-                <Button fx:id="emailButton0" layoutX="63.0" layoutY="196.0" mnemonicParsing="false" prefHeight="47.0" prefWidth="888.0" text="De : xxx Message : xxx" />
-                <Button fx:id="emailButton1" layoutX="63.0" layoutY="243.0" mnemonicParsing="false" prefHeight="47.0" prefWidth="888.0" text="De : xxx Message : xxx" />
-                <Button fx:id="emailButton2" layoutX="63.0" layoutY="290.0" mnemonicParsing="false" prefHeight="47.0" prefWidth="888.0" text="De : xxx Message : xxx" />
-                <Button fx:id="emailButton3" layoutX="63.0" layoutY="337.0" mnemonicParsing="false" prefHeight="47.0" prefWidth="888.0" text="De : xxx Message : xxx" />
-                <Button fx:id="emailButton4" layoutX="63.0" layoutY="384.0" mnemonicParsing="false" prefHeight="47.0" prefWidth="888.0" text="De : xxx Message : xxx" />
-                <Button fx:id="emailButton5" layoutX="63.0" layoutY="431.0" mnemonicParsing="false" prefHeight="47.0" prefWidth="888.0" text="De : xxx Message : xxx" />
-                <Button fx:id="emailButton6" layoutX="63.0" layoutY="149.0" mnemonicParsing="false" prefHeight="47.0" prefWidth="888.0" text="De : xxx Message : xxx" />
-                <Button fx:id="newMessageButton" layoutX="63.0" layoutY="592.0" mnemonicParsing="false" prefHeight="47.0" prefWidth="320.0" text="Envoyer un nouveau message" />
-                <Button fx:id="logoutButton" layoutX="63.0" layoutY="39.0" mnemonicParsing="false" prefHeight="47.0" prefWidth="164.0" text="Se déconnecter" />
-                <Text fx:id="connectedText" layoutX="63.0" layoutY="124.0" strokeType="OUTSIDE" strokeWidth="0.0" text="Connecté à : xxx@yyy.zzz" wrappingWidth="249.205078125" />
+                <Button fx:id="logoutButton" styleClass="button-secondary" text="Déconnexion" />
+                <Region HBox.hgrow="ALWAYS" />
+                <Text fx:id="connectedText" styleClass="user-email" text="Connecté à : user@example.com" />
+                <Button fx:id="refreshButton" styleClass="button-secondary" text="Actualiser" />
+                <!-- Indicateur de chargement pour l'actualisation -->
+                <ProgressIndicator fx:id="refreshProgress" progress="-1" visible="false" prefHeight="20.0" prefWidth="20.0" />
             </children>
-        </AnchorPane>
-    </children>
-</VBox>
+            <padding>
+                <Insets bottom="10.0" left="20.0" right="20.0" top="10.0" />
+            </padding>
+        </HBox>
+    </top>
+    
+    <!-- Contenu principal -->
+    <center>
+        <StackPane>
+            <children>
+                <VBox spacing="5.0" fx:id="inboxContainer">
+                    <padding>
+                        <Insets bottom="10.0" left="20.0" right="20.0" top="10.0" />
+                    </padding>
+                    <children>
+                        <!-- Barre d'action -->
+                        <HBox alignment="CENTER_LEFT" spacing="10.0">
+                            <children>
+                                <Button fx:id="newMessageButton" styleClass="button-primary" text="Nouveau message" />
+                                <Label text="Boîte de réception">
+                                    <font>
+                                        <Font name="System Bold" size="16.0" />
+                                    </font>
+                                </Label>
+                                <Label fx:id="emailCountLabel" styleClass="badge" text="0" />
+                            </children>
+                            <VBox.margin>
+                                <Insets bottom="10.0" top="10.0" />
+                            </VBox.margin>
+                        </HBox>
+                        
+                        <!-- Liste des emails -->
+                        <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS" styleClass="email-list-container">
+                            <content>
+                                <StackPane>
+                                    <children>
+                                        <!-- Vue par défaut avec des emails -->
+                                        <VBox spacing="1.0" fx:id="emailListView">
+                                            <Button fx:id="emailButton0" styleClass="email-item" text="De : xxx Message : xxx" maxWidth="Infinity" />
+                                            <Button fx:id="emailButton1" styleClass="email-item" text="De : xxx Message : xxx" maxWidth="Infinity" />
+                                            <Button fx:id="emailButton2" styleClass="email-item" text="De : xxx Message : xxx" maxWidth="Infinity" />
+                                            <Button fx:id="emailButton3" styleClass="email-item" text="De : xxx Message : xxx" maxWidth="Infinity" />
+                                            <Button fx:id="emailButton4" styleClass="email-item" text="De : xxx Message : xxx" maxWidth="Infinity" />
+                                            <Button fx:id="emailButton5" styleClass="email-item" text="De : xxx Message : xxx" maxWidth="Infinity" />
+                                            <Button fx:id="emailButton6" styleClass="email-item" text="De : xxx Message : xxx" maxWidth="Infinity" />
+                                        </VBox>
+                                        
+                                        <!-- Vue pour boîte de réception vide -->
+                                        <VBox fx:id="emptyInboxView" alignment="CENTER" styleClass="empty-inbox" visible="false">
+                                            <children>
+                                                <Text styleClass="icon" text="📭" />
+                                                <Text text="Aucun message dans votre boîte de réception" />
+                                                <Text text="Les nouveaux messages apparaîtront ici" />
+                                                <Button fx:id="emptyRefreshButton" styleClass="button-secondary" text="Actualiser">
+                                                    <VBox.margin>
+                                                        <Insets top="15.0" />
+                                                    </VBox.margin>
+                                                </Button>
+                                            </children>
+                                        </VBox>
+                                    </children>
+                                </StackPane>
+                            </content>
+                        </ScrollPane>
+                    </children>
+                </VBox>
+                
+                <!-- Overlay de chargement global -->
+                <StackPane fx:id="loadingOverlay" styleClass="spinner-overlay" visible="false">
+                    <children>
+                        <VBox alignment="CENTER" spacing="15">
+                            <ProgressIndicator progress="-1" />
+                            <Label text="Chargement en cours..." />
+                        </VBox>
+                    </children>
+                </StackPane>
+            </children>
+        </StackPane>
+    </center>
+</BorderPane>
