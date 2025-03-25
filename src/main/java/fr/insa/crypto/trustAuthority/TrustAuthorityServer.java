@@ -10,6 +10,7 @@ import fr.insa.crypto.trustAuthority.user.UserAccount;
 import fr.insa.crypto.trustAuthority.user.UserManager;
 import fr.insa.crypto.utils.Config;
 import fr.insa.crypto.utils.Logger;
+import it.unisa.dia.gas.jpbc.Element;
 import org.json.JSONObject;
 
 import javax.mail.Message;
@@ -26,7 +27,12 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Properties;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+
+import fr.insa.crypto.encryption.IdentityBasedEncryption;
+import fr.insa.crypto.utils.SecureChannelManager;
 
 /**
  * Serveur HTTP pour l'autorité de confiance
@@ -44,6 +50,15 @@ public class TrustAuthorityServer {
     // Session email pour l'envoi des OTP
     private Session emailSession;
     private String senderEmail;
+
+    // Identité du serveur pour le chiffrement IBE - mise à jour pour utiliser un format d'email valide
+    private static final String SERVER_IDENTITY = "server@trust.authority";
+    
+    // Gestionnaire des canaux sécurisés (par identifiant de session)
+    private final ConcurrentHashMap<String, SecureChannelManager> secureChannels = new ConcurrentHashMap<>();
+    
+    // Constante pour le header d'identification de session
+    private static final String SESSION_ID_HEADER = "X-Session-ID";
 
     public TrustAuthorityServer(TrustAuthority trustAuthority, int port) {
         this.trustAuthority = trustAuthority;
@@ -83,6 +98,9 @@ public class TrustAuthorityServer {
         } catch (Exception e) {
             Logger.error("Erreur lors de l'initialisation de la session email: " + e.getMessage());
         }
+
+        // Initialiser le moteur IBE pour le serveur
+        IdentityBasedEncryption ibeEngine = new IdentityBasedEncryption(trustAuthority.getParameters());
     }
 
     /**
@@ -100,6 +118,9 @@ public class TrustAuthorityServer {
         server.createContext("/auth/verify-otp", new VerifyOtpHandler());
         server.createContext("/auth/verify-totp", new VerifyTotpHandler());
         server.createContext("/auth/check-account", new CheckAccountHandler());
+
+        // Nouvel endpoint pour établir un canal sécurisé
+        server.createContext("/establish-secure-channel", new EstablishSecureChannelHandler());
 
         server.setExecutor(null); // Utilise l'exécuteur par défaut
         server.start();
@@ -184,6 +205,25 @@ public class TrustAuthorityServer {
     }
 
     /**
+     * Récupère l'identifiant de session depuis l'échange HTTP, ou en génère un nouveau
+     * @param exchange L'échange HTTP
+     * @param generateIfMissing Si true, génère un nouvel ID si aucun n'est présent
+     * @return L'identifiant de session, ou null si absent et generateIfMissing est false
+     */
+    private String getSessionId(HttpExchange exchange, boolean generateIfMissing) {
+        // Vérifier si un header Session-ID est présent
+        String sessionId = exchange.getRequestHeaders().getFirst(SESSION_ID_HEADER);
+        
+        // Si pas d'ID et qu'on doit en générer un
+        if (sessionId == null && generateIfMissing) {
+            sessionId = UUID.randomUUID().toString();
+            Logger.info("Nouveau Session-ID généré: " + sessionId);
+        }
+        
+        return sessionId;
+    }
+
+    /**
      * Handler sécurisé pour la distribution des clés privées (avec authentification 2FA)
      */
     private class SecurePrivateKeyHandler implements HttpHandler {
@@ -193,33 +233,37 @@ public class TrustAuthorityServer {
                 sendResponse(exchange, 405, "Method Not Allowed");
                 return;
             }
+            
+            // Récupérer l'identifiant de session
+            String sessionId = getSessionId(exchange, false);
+            SecureChannelManager secureChannel = sessionId != null ? secureChannels.get(sessionId) : null;
 
             try {
                 // Lire les données de la requête
                 String requestBody = new BufferedReader(
                         new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8))
                         .lines().collect(Collectors.joining("\n"));
-
-                // Déterminer si c'est une demande JSON (nouvelle méthode) ou texte brut (ancienne méthode)
-                String email;
-                boolean isSecureRequest = false;
-
-                try {
-                    JSONObject jsonRequest = new JSONObject(requestBody);
-                    email = jsonRequest.getString("email");
-                    String totpCode = jsonRequest.getString("totpCode");
-                    isSecureRequest = true;
-
-                    // Vérifier l'authentification
-                    if (!isUserAuthenticated(email, totpCode)) {
-                        sendResponse(exchange, 401, "Unauthorized: Invalid authentication");
-                        return;
+                
+                // Si le canal est sécurisé, déchiffrer la requête
+                if (secureChannel != null) {
+                    try {
+                        requestBody = secureChannel.processSecureResponse(requestBody);
+                    } catch (Exception e) {
+                        Logger.error("Erreur lors du déchiffrement de la requête: " + e.getMessage());
+                        // Continuer avec la requête non déchiffrée
                     }
-                } catch (Exception e) {
-                    sendResponse(exchange, 400, "Bad Request: Invalid JSON format or missing fields");
-                    return;
                 }
 
+                // Traitement normal de la requête JSON
+                JSONObject jsonRequest = new JSONObject(requestBody);
+                String email = jsonRequest.getString("email");
+                String totpCode = jsonRequest.getString("totpCode");
+                
+                // Vérifier l'authentification
+                if (!isUserAuthenticated(email, totpCode)) {
+                    sendResponse(exchange, 401, "Unauthorized: Invalid authentication");
+                    return;
+                }
 
                 // Distribution de la clé privée
                 KeyPair privateKey = trustAuthority.getKeyDistributor().distributePrivateKey(email);
@@ -230,7 +274,12 @@ public class TrustAuthorityServer {
                         Base64.getEncoder().encodeToString(privateKey.getSk().toBytes())
                 );
 
-                sendResponse(exchange, 200, response);
+                // Envoyer la réponse, de préférence chiffrée
+                if (secureChannel != null && sessionId != null) {
+                    sendSecureResponseWithSessionId(exchange, 200, response, sessionId, secureChannel);
+                } else {
+                    sendResponse(exchange, 200, response);
+                }
 
             } catch (Exception e) {
                 Logger.error("Erreur lors de la distribution de clé privée: " + e.getMessage());
@@ -249,22 +298,50 @@ public class TrustAuthorityServer {
                 sendResponse(exchange, 405, "Method Not Allowed");
                 return;
             }
+            
+            // Récupérer l'identifiant de session
+            String sessionId = getSessionId(exchange, false);
+            SecureChannelManager secureChannel = sessionId != null ? secureChannels.get(sessionId) : null;
 
             try {
-                // Lire l'email dans le corps de la requête
-                String email = new BufferedReader(
+                // Lire les données de la requête
+                String requestBody = new BufferedReader(
                         new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8))
                         .lines().collect(Collectors.joining("\n"));
+                
+                // Si le canal est sécurisé, déchiffrer la requête
+                if (secureChannel != null) {
+                    try {
+                        requestBody = secureChannel.processSecureResponse(requestBody);
+                    } catch (Exception e) {
+                        Logger.error("Erreur lors du déchiffrement de la requête: " + e.getMessage());
+                        // Continuer avec la requête non déchiffrée
+                    }
+                }
+                
+                // Traiter la requête JSON
+                JSONObject jsonRequest = new JSONObject(requestBody);
+                String email = jsonRequest.getString("email");
 
                 // Vérifier le format de l'email
                 if (!Config.isValidEmail(email)) {
-                    sendResponse(exchange, 400, "Invalid email format");
+                    String responseMsg = "Invalid email format";
+                    if (secureChannel != null && sessionId != null) {
+                        sendSecureResponseWithSessionId(exchange, 400, responseMsg, sessionId, secureChannel);
+                    } else {
+                        sendResponse(exchange, 400, responseMsg);
+                    }
                     return;
                 }
 
                 // Vérifier si l'utilisateur existe déjà et est vérifié
                 if (userManager.isUserVerified(email)) {
-                    sendResponse(exchange, 400, "User already registered and verified");
+                    String responseMsg = "User already registered and verified";
+                    if (secureChannel != null && sessionId != null) {
+                        sendSecureResponseWithSessionId(exchange, 400, responseMsg, sessionId, secureChannel);
+                    } else {
+                        sendResponse(exchange, 400, responseMsg);
+                    }
                     return;
                 }
 
@@ -279,13 +356,78 @@ public class TrustAuthorityServer {
                 boolean emailSent = sendOtpEmail(email, otp);
 
                 if (emailSent) {
-                    sendResponse(exchange, 200, "OTP sent successfully");
+                    String responseMsg = "OTP sent successfully";
+                    if (secureChannel != null && sessionId != null) {
+                        sendSecureResponseWithSessionId(exchange, 200, responseMsg, sessionId, secureChannel);
+                    } else {
+                        sendResponse(exchange, 200, responseMsg);
+                    }
                 } else {
-                    sendResponse(exchange, 500, "Failed to send OTP email");
+                    String responseMsg = "Failed to send OTP email";
+                    if (secureChannel != null && sessionId != null) {
+                        sendSecureResponseWithSessionId(exchange, 500, responseMsg, sessionId, secureChannel);
+                    } else {
+                        sendResponse(exchange, 500, responseMsg);
+                    }
                 }
-
             } catch (Exception e) {
                 Logger.error("Erreur lors de la demande d'enregistrement: " + e.getMessage());
+                sendResponse(exchange, 500, "Internal Server Error: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Handler pour vérifier l'existence d'un compte
+     */
+    private class CheckAccountHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if (!"POST".equals(exchange.getRequestMethod())) {
+                sendResponse(exchange, 405, "Method Not Allowed");
+                return;
+            }
+
+            // Récupérer l'identifiant de session
+            String sessionId = getSessionId(exchange, false);
+            SecureChannelManager secureChannel = sessionId != null ? secureChannels.get(sessionId) : null;
+
+            try {
+                // Lire les données de la requête
+                String requestBody = new BufferedReader(
+                        new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8))
+                        .lines().collect(Collectors.joining("\n"));
+                
+                // Si le canal est sécurisé, déchiffrer la requête
+                if (secureChannel != null) {
+                    try {
+                        requestBody = secureChannel.processSecureResponse(requestBody);
+                    } catch (Exception e) {
+                        Logger.error("Erreur lors du déchiffrement de la requête: " + e.getMessage());
+                    }
+                }
+                
+                // Traiter la requête JSON
+                JSONObject jsonRequest = new JSONObject(requestBody);
+                String email = jsonRequest.getString("email");
+
+                // Vérifier si l'utilisateur existe et est vérifié
+                boolean exists = userManager.isUserRegistered(email);
+                boolean verified = userManager.isUserVerified(email);
+
+                // Préparer la réponse JSON
+                JSONObject jsonResponse = new JSONObject();
+                jsonResponse.put("exists", exists);
+                jsonResponse.put("verified", verified);
+
+                // Envoyer la réponse, de préférence chiffrée
+                if (secureChannel != null && sessionId != null) {
+                    sendSecureResponseWithSessionId(exchange, 200, jsonResponse.toString(), sessionId, secureChannel);
+                } else {
+                    sendResponse(exchange, 200, jsonResponse.toString());
+                }
+            } catch (Exception e) {
+                Logger.error("Erreur lors de la vérification du compte: " + e.getMessage());
                 sendResponse(exchange, 500, "Internal Server Error: " + e.getMessage());
             }
         }
@@ -301,12 +443,25 @@ public class TrustAuthorityServer {
                 sendResponse(exchange, 405, "Method Not Allowed");
                 return;
             }
+            
+            // Récupérer l'identifiant de session
+            String sessionId = getSessionId(exchange, false);
+            SecureChannelManager secureChannel = sessionId != null ? secureChannels.get(sessionId) : null;
 
             try {
                 // Lire les données de la requête
                 String requestBody = new BufferedReader(
                         new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8))
                         .lines().collect(Collectors.joining("\n"));
+                
+                // Si le canal est sécurisé, déchiffrer la requête
+                if (secureChannel != null) {
+                    try {
+                        requestBody = secureChannel.processSecureResponse(requestBody);
+                    } catch (Exception e) {
+                        Logger.error("Erreur lors du déchiffrement de la requête: " + e.getMessage());
+                    }
+                }
 
                 // Analyser les données JSON
                 JSONObject jsonRequest = new JSONObject(requestBody);
@@ -316,13 +471,23 @@ public class TrustAuthorityServer {
                 // Récupérer le compte utilisateur
                 UserAccount account = userManager.getUser(email);
                 if (account == null) {
-                    sendResponse(exchange, 404, "User not found");
+                    String responseMsg = "User not found";
+                    if (secureChannel != null && sessionId != null) {
+                        sendSecureResponseWithSessionId(exchange, 404, responseMsg, sessionId, secureChannel);
+                    } else {
+                        sendResponse(exchange, 404, responseMsg);
+                    }
                     return;
                 }
 
                 // Vérifier l'OTP
                 if (!account.validateOtp(otp)) {
-                    sendResponse(exchange, 401, "Invalid or expired OTP");
+                    String responseMsg = "Invalid or expired OTP";
+                    if (secureChannel != null && sessionId != null) {
+                        sendSecureResponseWithSessionId(exchange, 401, responseMsg, sessionId, secureChannel);
+                    } else {
+                        sendResponse(exchange, 401, responseMsg);
+                    }
                     return;
                 }
 
@@ -342,8 +507,12 @@ public class TrustAuthorityServer {
                 jsonResponse.put("totpSecret", totpSecret);
                 jsonResponse.put("qrCodeUri", qrCodeUri);
 
-                sendResponse(exchange, 200, jsonResponse.toString());
-
+                // Envoyer la réponse, de préférence chiffrée
+                if (secureChannel != null && sessionId != null) {
+                    sendSecureResponseWithSessionId(exchange, 200, jsonResponse.toString(), sessionId, secureChannel);
+                } else {
+                    sendResponse(exchange, 200, jsonResponse.toString());
+                }
             } catch (QrGenerationException e) {
                 Logger.error("Erreur lors de la génération du QR code: " + e.getMessage());
                 sendResponse(exchange, 500, "Failed to generate QR code");
@@ -364,6 +533,10 @@ public class TrustAuthorityServer {
                 sendResponse(exchange, 405, "Method Not Allowed");
                 return;
             }
+            
+            // Récupérer l'identifiant de session
+            String sessionId = getSessionId(exchange, false);
+            SecureChannelManager secureChannel = sessionId != null ? secureChannels.get(sessionId) : null;
 
             try {
                 // Lire les données de la requête
@@ -372,14 +545,28 @@ public class TrustAuthorityServer {
                         .lines().collect(Collectors.joining("\n"));
                     
                 Logger.debug("Corps de la requête TOTP reçu: " + requestBody);
+                
+                // Si le canal est sécurisé, déchiffrer la requête
+                if (secureChannel != null) {
+                    try {
+                        requestBody = secureChannel.processSecureResponse(requestBody);
+                        Logger.debug("Requête TOTP déchiffrée: " + requestBody);
+                    } catch (Exception e) {
+                        Logger.error("Erreur lors du déchiffrement de la requête TOTP: " + e.getMessage());
+                    }
+                }
 
                 // Analyser les données JSON
                 JSONObject jsonRequest = new JSONObject(requestBody);
                 
                 // Vérifier que les clés requises existent
                 if (!jsonRequest.has("email")) {
-                    Logger.error("Clé 'email' non trouvée dans la requête JSON TOTP");
-                    sendResponse(exchange, 400, "{\"authenticated\":false, \"error\":\"Missing email parameter\"}");
+                    String responseMsg = "{\"authenticated\":false, \"error\":\"Missing email parameter\"}";
+                    if (secureChannel != null && sessionId != null) {
+                        sendSecureResponseWithSessionId(exchange, 400, responseMsg, sessionId, secureChannel);
+                    } else {
+                        sendResponse(exchange, 400, responseMsg);
+                    }
                     return;
                 }
                 
@@ -392,16 +579,24 @@ public class TrustAuthorityServer {
                 } else if (jsonRequest.has("totpCode")) {
                     totpCode = jsonRequest.getString("totpCode");
                 } else {
-                    Logger.error("Code TOTP non trouvé dans la requête JSON");
-                    sendResponse(exchange, 400, "{\"authenticated\":false, \"error\":\"Missing TOTP code\"}");
+                    String responseMsg = "{\"authenticated\":false, \"error\":\"Missing TOTP code\"}";
+                    if (secureChannel != null && sessionId != null) {
+                        sendSecureResponseWithSessionId(exchange, 400, responseMsg, sessionId, secureChannel);
+                    } else {
+                        sendResponse(exchange, 400, responseMsg);
+                    }
                     return;
                 }
 
                 // Récupérer le compte utilisateur
                 UserAccount account = userManager.getUser(email);
                 if (account == null || !account.isVerified()) {
-                    Logger.warning("Tentative de vérification TOTP pour un compte inexistant ou non vérifié: " + email);
-                    sendResponse(exchange, 401, "{\"authenticated\":false, \"error\":\"Invalid account\"}");
+                    String responseMsg = "{\"authenticated\":false, \"error\":\"Invalid account\"}";
+                    if (secureChannel != null && sessionId != null) {
+                        sendSecureResponseWithSessionId(exchange, 401, responseMsg, sessionId, secureChannel);
+                    } else {
+                        sendResponse(exchange, 401, responseMsg);
+                    }
                     return;
                 }
 
@@ -411,51 +606,16 @@ public class TrustAuthorityServer {
                 // Préparer la réponse JSON
                 JSONObject jsonResponse = new JSONObject();
                 jsonResponse.put("authenticated", isValid);
-                if (isValid) {
-                    Logger.info("Vérification TOTP réussie pour " + email);
-                } else {
-                    Logger.warning("Échec de la vérification TOTP pour " + email);
-                }
                 
-                sendResponse(exchange, 200, jsonResponse.toString());
+                // Envoyer la réponse, de préférence chiffrée
+                if (secureChannel != null && sessionId != null) {
+                    sendSecureResponseWithSessionId(exchange, 200, jsonResponse.toString(), sessionId, secureChannel);
+                } else {
+                    sendResponse(exchange, 200, jsonResponse.toString());
+                }
             } catch (Exception e) {
                 Logger.error("Erreur lors de la vérification TOTP: " + e.getMessage());
                 sendResponse(exchange, 500, "{\"authenticated\":false, \"error\":\"" + e.getMessage() + "\"}");
-            }
-        }
-    }
-
-    /**
-     * Handler pour vérifier l'existence d'un compte
-     */
-    private class CheckAccountHandler implements HttpHandler {
-        @Override
-        public void handle(HttpExchange exchange) throws IOException {
-            if (!"POST".equals(exchange.getRequestMethod())) {
-                sendResponse(exchange, 405, "Method Not Allowed");
-                return;
-            }
-
-            try {
-                // Lire l'email dans le corps de la requête
-                String email = new BufferedReader(
-                        new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8))
-                        .lines().collect(Collectors.joining("\n"));
-
-                // Vérifier si l'utilisateur existe et est vérifié
-                boolean exists = userManager.isUserRegistered(email);
-                boolean verified = userManager.isUserVerified(email);
-
-                // Préparer la réponse JSON
-                JSONObject jsonResponse = new JSONObject();
-                jsonResponse.put("exists", exists);
-                jsonResponse.put("verified", verified);
-
-                sendResponse(exchange, 200, jsonResponse.toString());
-
-            } catch (Exception e) {
-                Logger.error("Erreur lors de la vérification du compte: " + e.getMessage());
-                sendResponse(exchange, 500, "Internal Server Error: " + e.getMessage());
             }
         }
     }
@@ -488,6 +648,55 @@ public class TrustAuthorityServer {
     }
 
     /**
+     * Handler pour l'établissement d'un canal sécurisé
+     */
+    private class EstablishSecureChannelHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if (!"POST".equals(exchange.getRequestMethod())) {
+                sendResponse(exchange, 405, "Method Not Allowed");
+                return;
+            }
+            
+            try {
+                // Générer un nouvel identifiant de session
+                String sessionId = getSessionId(exchange, true);
+                
+                // Lire les données de la requête
+                String requestBody = new BufferedReader(
+                        new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8))
+                        .lines().collect(Collectors.joining("\n"));
+                
+                // Créer un objet JSON à partir des données
+                JSONObject keyExchangeData = new JSONObject(requestBody);
+                
+                // Créer un gestionnaire de canal sécurisé
+                SecureChannelManager secureChannel = new SecureChannelManager();
+                
+                // Obtenir la clé privée du serveur
+                Element serverPrivateKey = trustAuthority.getKeyDistributor()
+                        .distributePrivateKey(SERVER_IDENTITY).getSk();
+                
+                // Déchiffrer la clé de session avec la clé privée du serveur
+                IdentityBasedEncryption ibeEngine = new IdentityBasedEncryption(trustAuthority.getParameters());
+                secureChannel.decryptSessionKey(keyExchangeData, serverPrivateKey, ibeEngine);
+                
+                // Stocker le canal sécurisé avec l'identifiant de session
+                secureChannels.put(sessionId, secureChannel);
+                
+                Logger.info("Canal sécurisé établi avec Session-ID: " + sessionId);
+                
+                // Envoyer une réponse de confirmation avec le Session-ID
+                sendResponseWithSessionId(exchange, 200, "secure-channel-established", sessionId);
+                
+            } catch (Exception e) {
+                Logger.error("Erreur lors de l'établissement du canal sécurisé: " + e.getMessage());
+                sendResponse(exchange, 400, "Failed to establish secure channel: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
      * Envoie une réponse au client
      */
     private void sendResponse(HttpExchange exchange, int statusCode, String response) throws IOException {
@@ -498,6 +707,82 @@ public class TrustAuthorityServer {
         try (OutputStream os = exchange.getResponseBody()) {
             os.write(responseBytes);
         }
+    }
+
+    /**
+     * Envoie une réponse au client avec un header Session-ID
+     */
+    private void sendResponseWithSessionId(HttpExchange exchange, int statusCode, String response, String sessionId) throws IOException {
+        exchange.getResponseHeaders().set("Content-Type", "application/json; charset=UTF-8");
+        exchange.getResponseHeaders().set(SESSION_ID_HEADER, sessionId);
+        
+        byte[] responseBytes = response.getBytes(StandardCharsets.UTF_8);
+        exchange.sendResponseHeaders(statusCode, responseBytes.length);
+
+        try (OutputStream os = exchange.getResponseBody()) {
+            os.write(responseBytes);
+        }
+    }
+
+    /**
+     * Version améliorée de la méthode sendResponse pour prendre en charge le chiffrement avec Session-ID
+     */
+    private void sendSecureResponseWithSessionId(HttpExchange exchange, int statusCode, String response, 
+                                              String sessionId, SecureChannelManager secureChannel) throws IOException {
+        try {
+            // Chiffrer la réponse
+            JSONObject secureResponse = new JSONObject();
+            secureResponse.put("secured", true);
+            secureResponse.put("encryptedContent", secureChannel.encryptWithSessionKey(response));
+            
+            // Envoyer la réponse chiffrée avec le Session-ID
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.getResponseHeaders().set(SESSION_ID_HEADER, sessionId);
+            
+            byte[] responseBytes = secureResponse.toString().getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(statusCode, responseBytes.length);
+            
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(responseBytes);
+            }
+        } catch (Exception e) {
+            Logger.error("Erreur lors du chiffrement de la réponse: " + e.getMessage());
+            // En cas d'erreur, envoyer une réponse non chiffrée
+            sendResponseWithSessionId(exchange, statusCode, response, sessionId);
+        }
+    }
+
+    /**
+     * Version améliorée de la méthode sendResponse pour prendre en charge le chiffrement
+     */
+    private void sendSecureResponse(HttpExchange exchange, int statusCode, String response, String clientId) throws IOException {
+        try {
+            // Vérifier si un canal sécurisé existe pour ce client
+            SecureChannelManager secureChannel = secureChannels.get(clientId);
+            
+            if (secureChannel != null) {
+                // Chiffrer la réponse
+                JSONObject secureResponse = new JSONObject();
+                secureResponse.put("secured", true);
+                secureResponse.put("encryptedContent", secureChannel.encryptWithSessionKey(response));
+                
+                // Envoyer la réponse chiffrée
+                exchange.getResponseHeaders().set("Content-Type", "application/json");
+                byte[] responseBytes = secureResponse.toString().getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(statusCode, responseBytes.length);
+                
+                try (OutputStream os = exchange.getResponseBody()) {
+                    os.write(responseBytes);
+                }
+                return;
+            }
+        } catch (Exception e) {
+            Logger.error("Erreur lors du chiffrement de la réponse: " + e.getMessage());
+            // En cas d'erreur, envoyer une réponse non chiffrée
+        }
+        
+        // Réponse standard non chiffrée
+        sendResponse(exchange, statusCode, response);
     }
 
     /**

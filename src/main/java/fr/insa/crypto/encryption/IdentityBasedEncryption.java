@@ -10,9 +10,7 @@ import java.io.UnsupportedEncodingException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 
-/**
- * Classe gérant le chiffrement basé sur l'identité, adaptée du code fonctionnel
- */
+
 public class IdentityBasedEncryption {
     private final SettingParameters parameters;
 

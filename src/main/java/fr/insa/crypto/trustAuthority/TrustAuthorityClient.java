@@ -1,6 +1,8 @@
 package fr.insa.crypto.trustAuthority;
 
+import fr.insa.crypto.encryption.IdentityBasedEncryption;
 import fr.insa.crypto.utils.Logger;
+import fr.insa.crypto.utils.SecureChannelManager;
 import it.unisa.dia.gas.jpbc.Element;
 import it.unisa.dia.gas.jpbc.Pairing;
 import it.unisa.dia.gas.plaf.jpbc.pairing.PairingFactory;
@@ -11,7 +13,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
-import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -24,6 +25,18 @@ public class TrustAuthorityClient {
     private final SettingParameters parameters;
     private String totpSecret;
     private String currentEmail;
+    private final SecureChannelManager secureChannel;
+    private final IdentityBasedEncryption ibeEngine;
+    private boolean secureChannelEstablished = false;
+    
+    // Constante pour l'identité du serveur - mise à jour pour utiliser un format d'email valide
+    private static final String SERVER_IDENTITY = "server@trust.authority";
+    
+    // Header pour l'ID de session
+    private static final String SESSION_ID_HEADER = "X-Session-ID";
+    
+    // ID de session pour le canal sécurisé
+    private String sessionId;
 
     /**
      * Constructeur qui récupère les paramètres publics du serveur
@@ -33,10 +46,13 @@ public class TrustAuthorityClient {
     public TrustAuthorityClient(String serverUrl) throws IOException {
         this.serverUrl = serverUrl;
         this.parameters = fetchParameters();
+        this.secureChannel = new SecureChannelManager();
+        this.ibeEngine = new IdentityBasedEncryption(parameters);
     }
 
     /**
-     * Récupère les paramètres publics depuis le serveur
+     * Récupère les paramètres publics depuis le serveur de manière sécurisée
+     * Note: Cette méthode est spéciale car elle est appelée avant que le canal sécurisé ne soit initialisé
      */
     private SettingParameters fetchParameters() throws IOException {
         URL url = new URL(serverUrl + "/public-parameters");
@@ -51,8 +67,6 @@ public class TrustAuthorityClient {
         String response = readResponse(connection);
         connection.disconnect();
 
-        // Dans un cas réel, nous devrions désérialiser complètement les paramètres
-        // Pour l'instant, on utilise une implémentation simplifiée
         return new SettingParametersClient(response);
     }
 
@@ -63,31 +77,27 @@ public class TrustAuthorityClient {
      * @return Un objet contenant les informations sur l'existence et la vérification du compte
      */
     public AccountStatus checkAccountStatus(String email) throws IOException {
-        URL url = new URL(serverUrl + "/auth/check-account");
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        connection.setRequestMethod("POST");
-        connection.setDoOutput(true);
-
-        // Envoi de l'email au serveur
-        try (OutputStream os = connection.getOutputStream()) {
-            byte[] input = email.getBytes(StandardCharsets.UTF_8);
-            os.write(input, 0, input.length);
+        try {
+            // Établir un canal sécurisé si nécessaire
+            ensureSecureChannel();
+            
+            // Création des données JSON pour la requête
+            JSONObject jsonInput = new JSONObject();
+            jsonInput.put("email", email);
+            
+            // Envoyer la requête sécurisée
+            String response = sendSecureRequest("/auth/check-account", "POST", jsonInput.toString());
+            
+            // Analyse de la réponse JSON
+            JSONObject jsonResponse = new JSONObject(response);
+            boolean exists = jsonResponse.getBoolean("exists");
+            boolean verified = jsonResponse.getBoolean("verified");
+            
+            return new AccountStatus(exists, verified);
+        } catch (Exception e) {
+            Logger.error("Erreur lors de la vérification du compte: " + e.getMessage());
+            throw new IOException("Failed to check account status: " + e.getMessage());
         }
-
-        int responseCode = connection.getResponseCode();
-        if (responseCode != 200) {
-            throw new IOException("Failed to check account status: HTTP error code " + responseCode);
-        }
-
-        String response = readResponse(connection);
-        connection.disconnect();
-
-        // Analyse de la réponse JSON
-        JSONObject jsonResponse = new JSONObject(response);
-        boolean exists = jsonResponse.getBoolean("exists");
-        boolean verified = jsonResponse.getBoolean("verified");
-
-        return new AccountStatus(exists, verified);
     }
 
     /**
@@ -97,25 +107,23 @@ public class TrustAuthorityClient {
      * @return true si l'OTP a été envoyé avec succès
      */
     public boolean requestRegistration(String email) throws IOException {
-        URL url = new URL(serverUrl + "/auth/register");
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        connection.setRequestMethod("POST");
-        connection.setDoOutput(true);
-
-        // Envoi de l'email au serveur
-        try (OutputStream os = connection.getOutputStream()) {
-            byte[] input = email.getBytes(StandardCharsets.UTF_8);
-            os.write(input, 0, input.length);
-        }
-
-        int responseCode = connection.getResponseCode();
-        if (responseCode != 200) {
-            Logger.error("Failed to request registration: HTTP error code " + responseCode);
+        try {
+            // Établir un canal sécurisé si nécessaire
+            ensureSecureChannel();
+            
+            // Création des données JSON pour la requête
+            JSONObject jsonInput = new JSONObject();
+            jsonInput.put("email", email);
+            
+            // Envoyer la requête sécurisée
+            String response = sendSecureRequest("/auth/register", "POST", jsonInput.toString());
+            
+            // Vérifier la réponse
+            return response.contains("OTP sent successfully");
+        } catch (Exception e) {
+            Logger.error("Erreur lors de la demande d'enregistrement: " + e.getMessage());
             return false;
         }
-
-        connection.disconnect();
-        return true;
     }
 
     /**
@@ -126,40 +134,29 @@ public class TrustAuthorityClient {
      * @return Le QR code à scanner avec Google Authenticator, ou null en cas d'échec
      */
     public String verifyOtpAndSetupTOTP(String email, String otp) throws IOException {
-        URL url = new URL(serverUrl + "/auth/verify-otp");
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        connection.setRequestMethod("POST");
-        connection.setDoOutput(true);
-        connection.setRequestProperty("Content-Type", "application/json");
-
-        // Préparer les données JSON
-        JSONObject jsonInput = new JSONObject();
-        jsonInput.put("email", email);
-        jsonInput.put("otp", otp);
-        String jsonInputString = jsonInput.toString();
-
-        // Envoi des données au serveur
-        try (OutputStream os = connection.getOutputStream()) {
-            byte[] input = jsonInputString.getBytes(StandardCharsets.UTF_8);
-            os.write(input, 0, input.length);
-        }
-
-        int responseCode = connection.getResponseCode();
-        if (responseCode != 200) {
-            Logger.error("Failed to verify OTP: HTTP error code " + responseCode);
-            return null;
-        }
-
-        String response = readResponse(connection);
-        connection.disconnect();
-
-        // Analyse de la réponse JSON
-        JSONObject jsonResponse = new JSONObject(response);
-        if ("success".equals(jsonResponse.getString("status"))) {
-            this.totpSecret = jsonResponse.getString("totpSecret");
-            this.currentEmail = email;
-            return jsonResponse.getString("qrCodeUri");
-        } else {
+        try {
+            // Établir un canal sécurisé si nécessaire
+            ensureSecureChannel();
+            
+            // Préparer les données JSON
+            JSONObject jsonInput = new JSONObject();
+            jsonInput.put("email", email);
+            jsonInput.put("otp", otp);
+            
+            // Envoyer la requête sécurisée
+            String response = sendSecureRequest("/auth/verify-otp", "POST", jsonInput.toString());
+            
+            // Analyse de la réponse JSON
+            JSONObject jsonResponse = new JSONObject(response);
+            if ("success".equals(jsonResponse.getString("status"))) {
+                this.totpSecret = jsonResponse.getString("totpSecret");
+                this.currentEmail = email;
+                return jsonResponse.getString("qrCodeUri");
+            } else {
+                return null;
+            }
+        } catch (Exception e) {
+            Logger.error("Erreur lors de la vérification OTP: " + e.getMessage());
             return null;
         }
     }
@@ -172,44 +169,25 @@ public class TrustAuthorityClient {
      * @return true si le code est valide
      */
     public boolean verifyTOTP(String email, String totpCode) throws IOException {
-        URL url = new URL(serverUrl + "/auth/verify-totp");
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        connection.setRequestMethod("POST");
-        connection.setDoOutput(true);
-        connection.setRequestProperty("Content-Type", "application/json");
-        
-        Logger.debug("Envoi de la vérification TOTP pour " + email);
-
-        // Préparer les données JSON
-        JSONObject jsonInput = new JSONObject();
-        jsonInput.put("email", email);
-        jsonInput.put("totp", totpCode);
-        String jsonInputString = jsonInput.toString();
-        
-        Logger.debug("JSON de vérification TOTP: " + jsonInputString);
-
-        // Envoi des données au serveur
-        try (OutputStream os = connection.getOutputStream()) {
-            byte[] input = jsonInputString.getBytes(StandardCharsets.UTF_8);
-            os.write(input, 0, input.length);
-            os.flush();
-        }
-
-        int responseCode = connection.getResponseCode();
-        Logger.debug("Code de réponse de vérification TOTP: " + responseCode);
-        
-        String response = readResponse(connection);
-        Logger.debug("Réponse de vérification TOTP: " + response);
-        
-        connection.disconnect();
-
-        // Analyse de la réponse
-        if (responseCode == 200) {
+        try {
+            // Établir un canal sécurisé si nécessaire
+            ensureSecureChannel();
+            
+            // Préparer les données JSON
+            JSONObject jsonInput = new JSONObject();
+            jsonInput.put("email", email);
+            jsonInput.put("totp", totpCode);
+            
+            // Envoyer la requête sécurisée
+            String response = sendSecureRequest("/auth/verify-totp", "POST", jsonInput.toString());
+            
+            // Analyse de la réponse JSON
             JSONObject jsonResponse = new JSONObject(response);
             return jsonResponse.getBoolean("authenticated");
+        } catch (Exception e) {
+            Logger.error("Erreur lors de la vérification TOTP: " + e.getMessage());
+            return false;
         }
-
-        return false;
     }
 
     /**
@@ -217,64 +195,49 @@ public class TrustAuthorityClient {
      */
     public KeyPair requestPrivateKey(String identity, String totpCode) throws IOException {
         Logger.debug("requestPrivateKey appelé pour " + identity);
-        URL url = new URL(serverUrl + "/get-private-key");
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        connection.setRequestMethod("POST");
-        connection.setDoOutput(true);
-        connection.setRequestProperty("Content-Type", "application/json");
-        connection.setConnectTimeout(30000); // 30 secondes de timeout
-        connection.setReadTimeout(30000);    // 30 secondes de timeout
-        
-        // Préparer les données JSON
-        JSONObject jsonInput = new JSONObject();
-        jsonInput.put("email", identity);
-        jsonInput.put("totpCode", totpCode);
-        String jsonInputString = jsonInput.toString();
-        Logger.debug("Envoi de la requête JSON pour clé privée: " + jsonInputString);
-        
-        // Envoi des données au serveur
-        try (OutputStream os = connection.getOutputStream()) {
-            byte[] input = jsonInputString.getBytes(StandardCharsets.UTF_8);
-            os.write(input, 0, input.length);
-            os.flush();
-        }
-        
-        Logger.debug("Attente de la réponse du serveur...");
-        int responseCode = connection.getResponseCode();
-        Logger.debug("Code de réponse reçu: " + responseCode);
-        
-        if (responseCode != 200) {
-            String errorBody = readResponse(connection);
-            Logger.error("Échec de la requête (code " + responseCode + "): " + errorBody);
-            throw new IOException("Failed to get private key: HTTP error code " + responseCode + ", response: " + errorBody);
-        }
-        
-        String response = readResponse(connection);
-        Logger.debug("Réponse JSON reçue du serveur (longueur: " + response.length() + ")");
-        connection.disconnect();
         
         try {
-            // Analyse de la réponse JSON
-            JSONObject jsonResponse = new JSONObject(response);
-            
-            // Vérifier que la réponse contient les champs attendus
-            if (!jsonResponse.has("identity") || !jsonResponse.has("privateKey")) {
-                throw new IOException("Invalid server response, missing required fields");
+            // Établir un canal sécurisé si nécessaire
+            if (!secureChannelEstablished) {
+                establishSecureChannel();
             }
             
-            // Récupération de l'identité et de la clé privée
-            String identityFromServer = jsonResponse.getString("identity");
-            String privateKeyBase64 = jsonResponse.getString("privateKey");
+            // Préparer les données JSON
+            JSONObject jsonInput = new JSONObject();
+            jsonInput.put("email", identity);
+            jsonInput.put("totpCode", totpCode);
+            String jsonInputString = jsonInput.toString();
             
-            byte[] privateKeyBytes = Base64.getDecoder().decode(privateKeyBase64);
+            // Envoyer la requête sécurisée
+            String response = sendSecureRequest("/get-private-key", "POST", jsonInputString);
+            Logger.debug("Réponse JSON reçue du serveur (longueur: " + response.length() + ")");
             
-            // Recréer l'élément JPBC pour la clé privée
-            Element privateKey = parameters.getPairing().getG1().newElementFromBytes(privateKeyBytes);
-            
-            return new KeyPair(identityFromServer, privateKey);
+            try {
+                // Analyse de la réponse JSON
+                JSONObject jsonResponse = new JSONObject(response);
+                
+                // Vérifier que la réponse contient les champs attendus
+                if (!jsonResponse.has("identity") || !jsonResponse.has("privateKey")) {
+                    throw new IOException("Invalid server response, missing required fields");
+                }
+                
+                // Récupération de l'identité et de la clé privée
+                String identityFromServer = jsonResponse.getString("identity");
+                String privateKeyBase64 = jsonResponse.getString("privateKey");
+                
+                byte[] privateKeyBytes = Base64.getDecoder().decode(privateKeyBase64);
+                
+                // Recréer l'élément JPBC pour la clé privée
+                Element privateKey = parameters.getPairing().getG1().newElementFromBytes(privateKeyBytes);
+                
+                return new KeyPair(identityFromServer, privateKey);
+            } catch (Exception e) {
+                Logger.error("Exception lors du traitement de la réponse JSON: " + e.getMessage());
+                throw new IOException("Failed to parse server response: " + e.getMessage());
+            }
         } catch (Exception e) {
-            Logger.error("Exception lors du traitement de la réponse JSON: " + e.getMessage());
-            throw new IOException("Failed to parse server response: " + e.getMessage());
+            Logger.error("Erreur lors de la demande de clé privée: " + e.getMessage());
+            throw new IOException("Failed to request private key: " + e.getMessage());
         }
     }
 
@@ -323,6 +286,143 @@ public class TrustAuthorityClient {
         Element privateKey = parameters.getPairing().getG1().newElementFromBytes(privateKeyBytes);
 
         return new KeyPair(identity, privateKey);
+    }
+
+    /**
+     * Établit un canal sécurisé avec le serveur
+     */
+    public boolean establishSecureChannel() throws IOException {
+        if (secureChannelEstablished) {
+            return true;
+        }
+        
+        try {
+            // Générer une clé de session et la chiffrer pour le serveur
+            JSONObject keyExchange = secureChannel.encryptSessionKeyForServer(SERVER_IDENTITY, ibeEngine);
+            
+            // Envoyer la clé au serveur
+            URL url = new URL(serverUrl + "/establish-secure-channel");
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("POST");
+            connection.setDoOutput(true);
+            connection.setRequestProperty("Content-Type", "application/json");
+            
+            try (OutputStream os = connection.getOutputStream()) {
+                byte[] input = keyExchange.toString().getBytes(StandardCharsets.UTF_8);
+                os.write(input, 0, input.length);
+                os.flush();
+            }
+            
+            int responseCode = connection.getResponseCode();
+            String response = readResponse(connection);
+            
+            // Récupérer le Session-ID depuis les headers
+            sessionId = connection.getHeaderField(SESSION_ID_HEADER);
+            if (sessionId != null) {
+                Logger.info("Session-ID reçu: " + sessionId);
+            } else {
+                Logger.warning("Aucun Session-ID reçu dans la réponse");
+            }
+            
+            connection.disconnect();
+            
+            if (responseCode == 200 && response.equals("secure-channel-established")) {
+                secureChannelEstablished = true;
+                Logger.info("Canal sécurisé établi avec le serveur d'autorité");
+                return true;
+            } else {
+                Logger.error("Échec de l'établissement du canal sécurisé: " + response);
+                return false;
+            }
+            
+        } catch (Exception e) {
+            Logger.error("Erreur lors de l'établissement du canal sécurisé: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Méthode utilitaire pour envoyer une requête HTTP sécurisée
+     */
+    private String sendSecureRequest(String endpoint, String method, String data) throws IOException {
+        URL url = new URL(serverUrl + endpoint);
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setRequestMethod(method);
+        connection.setConnectTimeout(30000);
+        connection.setReadTimeout(30000);
+        
+        // Ajouter le Session-ID dans les headers si disponible
+        if (sessionId != null) {
+            connection.setRequestProperty(SESSION_ID_HEADER, sessionId);
+        }
+        
+        if (data != null) {
+            connection.setDoOutput(true);
+            connection.setRequestProperty("Content-Type", "application/json");
+            
+            try {
+                // Tenter de sécuriser la communication si possible
+                String securedData = data;
+                if (secureChannelEstablished) {
+                    securedData = secureChannel.prepareSecureMessage(data);
+                }
+                
+                try (OutputStream os = connection.getOutputStream()) {
+                    byte[] input = securedData.getBytes(StandardCharsets.UTF_8);
+                    os.write(input, 0, input.length);
+                    os.flush();
+                }
+            } catch (Exception e) {
+                Logger.error("Erreur lors de la préparation de la requête sécurisée: " + e.getMessage());
+                // En cas d'erreur, envoyer la requête non sécurisée
+                try (OutputStream os = connection.getOutputStream()) {
+                    byte[] input = data.getBytes(StandardCharsets.UTF_8);
+                    os.write(input, 0, input.length);
+                    os.flush();
+                }
+            }
+        }
+        
+        int responseCode = connection.getResponseCode();
+        if (responseCode >= 400) {
+            String errorResponse = readResponse(connection);
+            connection.disconnect();
+            throw new IOException("HTTP error " + responseCode + ": " + errorResponse);
+        }
+        
+        // Vérifier si nous avons reçu un nouveau Session-ID
+        String newSessionId = connection.getHeaderField(SESSION_ID_HEADER);
+        if (newSessionId != null && !newSessionId.equals(sessionId)) {
+            Logger.info("Mise à jour du Session-ID: " + newSessionId);
+            sessionId = newSessionId;
+        }
+        
+        String response = readResponse(connection);
+        connection.disconnect();
+        
+        // Tenter de déchiffrer la réponse si le canal est sécurisé
+        if (secureChannelEstablished) {
+            try {
+                return secureChannel.processSecureResponse(response);
+            } catch (Exception e) {
+                Logger.error("Erreur lors du déchiffrement de la réponse: " + e.getMessage());
+                // En cas d'erreur, retourner la réponse non déchiffrée
+            }
+        }
+        
+        return response;
+    }
+
+    /**
+     * S'assure qu'un canal sécurisé est établi, en créant un nouveau si nécessaire
+     */
+    private void ensureSecureChannel() throws IOException {
+        if (!secureChannelEstablished) {
+            boolean success = establishSecureChannel();
+            if (!success) {
+                throw new IOException("Failed to establish secure channel with trust authority");
+            }
+        }
     }
 
     /**

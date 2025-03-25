@@ -56,6 +56,19 @@ public class MainUI extends Application {
     private void connectToTrustAuthority() {
         try {
             trustClient = new TrustAuthorityClient(Config.TRUST_AUTHORITY_URL);
+            
+            // Établir proactivement le canal sécurisé
+            try {
+                boolean success = trustClient.establishSecureChannel();
+                if (success) {
+                    Logger.info("Canal sécurisé établi avec l'autorité de confiance");
+                } else {
+                    Logger.warning("Impossible d'établir un canal sécurisé, les communications ne seront pas chiffrées");
+                }
+            } catch (Exception e) {
+                Logger.warning("Échec de l'établissement du canal sécurisé: " + e.getMessage());
+            }
+            
             Logger.info("Connected to trust authority at " + Config.TRUST_AUTHORITY_URL);
         } catch (Exception e) {
             Logger.error("Failed to connect to trust authority: " + e.getMessage());
